@@ -26,7 +26,6 @@ __CARGO_DEFAULT_LIB_METADATA=stablestd \
 cargo build \
     --target riscv32imac-unknown-xous-elf \
     -Zbinary-dep-depinfo \
-    -j 24 \
     --release \
     --features "panic-unwind backtrace compiler-builtins-c" \
     --manifest-path "library/test/Cargo.toml"
