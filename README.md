@@ -47,6 +47,7 @@ cargo build --target riscv32imac-unknown-xous-elf
 ## Building on Windows Powershell
 
 ```powershell
+Copy-Item riscv32imac-unknown-xous-elf.json $(rustc --print sysroot)
 $env:RUST_TARGET_PATH=$(rustc --print sysroot)
 $env:CARGO_PROFILE_RELEASE_DEBUG=0
 $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="false"
@@ -58,6 +59,8 @@ cargo build `
     --release `
     --features "panic-unwind backtrace compiler-builtins-c compiler-builtins-mem" `
     --manifest-path "library/test/Cargo.toml"
+New-Item -Type Directory -Path "$(rustc --print sysroot)\lib\rustlib\riscv32imac-unknown-xous-elf\lib"
+Copy-Item target\riscv32imac-unknown-xous-elf\release\deps\*.rlib "$(rustc --print sysroot)\lib\rustlib\riscv32imac-unknown-xous-elf\lib"
 ```
 
 ## Target Files
