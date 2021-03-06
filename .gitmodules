@@ -1,9 +1,6 @@
 [submodule "src/rust-installer"]
 	path = src/tools/rust-installer
 	url = https://github.com/rust-lang/rust-installer.git
-[submodule "src/tools/cargo"]
-	path = src/tools/cargo
-	url = https://github.com/rust-lang/cargo.git
 [submodule "src/tools/rls"]
 	path = src/tools/rls
 	url = https://github.com/rust-lang/rls.git

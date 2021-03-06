@@ -295,22 +295,21 @@ checksum = "81a18687293a1546b67c246452202bbbf143d239cb43494cc163da14979082da"
 
 [[package]]
 name = "cargo"
-version = "0.51.0"
+version = "0.47.0"
+source = "git+https://github.com/rust-lang/cargo?rev=43cf77395cad5b79887b20b7cf19d418bbd703a9#43cf77395cad5b79887b20b7cf19d418bbd703a9"
 dependencies = [
  "anyhow",
  "atty",
  "bytesize",
  "cargo-platform",
- "cargo-test-macro",
- "cargo-test-support",
  "clap",
  "core-foundation",
  "crates-io",
- "crossbeam-utils 0.8.0",
+ "crossbeam-utils 0.7.2",
  "crypto-hash",
  "curl",
  "curl-sys",
- "env_logger 0.8.1",
+ "env_logger 0.7.1",
  "filetime",
  "flate2",
  "fwdansi",
@@ -332,9 +331,7 @@ dependencies = [
  "miow 0.3.6",
  "num_cpus",
  "opener",
- "openssl",
  "percent-encoding 2.1.0",
- "pretty_env_logger",
  "rustc-workspace-hack",
  "rustfix",
  "same-file",
@@ -356,35 +353,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cargo-credential"
-version = "0.1.0"
-
-[[package]]
-name = "cargo-credential-1password"
-version = "0.1.0"
-dependencies = [
- "cargo-credential",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "cargo-credential-macos-keychain"
-version = "0.1.0"
-dependencies = [
- "cargo-credential",
- "security-framework",
-]
-
-[[package]]
-name = "cargo-credential-wincred"
-version = "0.1.0"
-dependencies = [
- "cargo-credential",
- "winapi 0.3.9",
-]
-
-[[package]]
 name = "cargo-miri"
 version = "0.1.0"
 dependencies = [
@@ -399,29 +367,9 @@ dependencies = [
 [[package]]
 name = "cargo-platform"
 version = "0.1.1"
+source = "git+https://github.com/rust-lang/cargo?rev=43cf77395cad5b79887b20b7cf19d418bbd703a9#43cf77395cad5b79887b20b7cf19d418bbd703a9"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "cargo-test-macro"
-version = "0.1.0"
-
-[[package]]
-name = "cargo-test-support"
-version = "0.1.0"
-dependencies = [
- "cargo",
- "cargo-test-macro",
- "filetime",
- "flate2",
- "git2",
- "glob",
- "lazy_static",
- "remove_dir_all",
- "serde_json",
- "tar",
- "url 2.1.1",
 ]
 
 [[package]]
@@ -717,12 +665,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "const_fn"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce90df4c658c62f12d78f7508cf92f9173e5184a539c10bfe54a3107b3ffd0f2"
-
-[[package]]
 name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -764,6 +706,7 @@ checksum = "8aebca1129a03dc6dc2b127edd729435bbc4a37e1d5f4d7513165089ceb02634"
 [[package]]
 name = "crates-io"
 version = "0.31.1"
+source = "git+https://github.com/rust-lang/cargo?rev=43cf77395cad5b79887b20b7cf19d418bbd703a9#43cf77395cad5b79887b20b7cf19d418bbd703a9"
 dependencies = [
  "anyhow",
  "curl",
@@ -856,18 +799,6 @@ checksum = "c3c7c73a2d1e9fc0886a08b93e98eb643461230d5f1925e4036204d5f2e261a8"
 dependencies = [
  "autocfg",
  "cfg-if 0.1.10",
- "lazy_static",
-]
-
-[[package]]
-name = "crossbeam-utils"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec91540d98355f690a86367e566ecad2e9e579f230230eb7c21398372be73ea5"
-dependencies = [
- "autocfg",
- "cfg-if 1.0.0",
- "const_fn",
  "lazy_static",
 ]
 
@@ -1074,19 +1005,6 @@ checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
 dependencies = [
  "atty",
  "humantime 1.3.0",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54532e3223c5af90a6a757c90b5c5521564b07e5e7a958681bcd2afad421cdcd"
-dependencies = [
- "atty",
- "humantime 2.0.1",
  "log",
  "regex",
  "termcolor",
@@ -2273,15 +2191,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
 
 [[package]]
-name = "openssl-src"
-version = "111.12.0+1.1.1h"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "858a4132194f8570a7ee9eb8629e85b23cbc4565f2d4a162e87556e5956abf61"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "openssl-sys"
 version = "0.9.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2290,7 +2199,6 @@ dependencies = [
  "autocfg",
  "cc",
  "libc",
- "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
@@ -2583,16 +2491,6 @@ dependencies = [
  "ctor",
  "difference",
  "output_vt100",
-]
-
-[[package]]
-name = "pretty_env_logger"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "926d36b9553851b8b0005f1275891b392ee4d2d833852c417ed025477350fb9d"
-dependencies = [
- "env_logger 0.7.1",
- "log",
 ]
 
 [[package]]
@@ -4471,29 +4369,6 @@ name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
-
-[[package]]
-name = "security-framework"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1759c2e3c8580017a484a7ac56d3abc5a6c1feadf88db2f3633f12ae4268c69"
-dependencies = [
- "bitflags",
- "core-foundation",
- "core-foundation-sys",
- "libc",
- "security-framework-sys",
-]
-
-[[package]]
-name = "security-framework-sys"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f99b9d5e26d2a71633cc4f2ebae7cc9f874044e0c351a27e17892d76dce5678b"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
 
 [[package]]
 name = "semver"

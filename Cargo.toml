@@ -19,10 +19,6 @@ members = [
   "src/tools/remote-test-server",
   "src/tools/rust-installer",
   "src/tools/rust-demangler",
-  "src/tools/cargo",
-  "src/tools/cargo/crates/credential/cargo-credential-1password",
-  "src/tools/cargo/crates/credential/cargo-credential-macos-keychain",
-  "src/tools/cargo/crates/credential/cargo-credential-wincred",
   "src/tools/rustdoc",
   "src/tools/rls",
   "src/tools/rustfmt",
@@ -78,14 +74,6 @@ adler.debug = 0
 gimli.debug = 0
 miniz_oxide.debug = 0
 object.debug = 0
-
-# We want the RLS to use the version of Cargo that we've got vendored in this
-# repository to ensure that the same exact version of Cargo is used by both the
-# RLS and the Cargo binary itself. The RLS depends on Cargo as a git repository
-# so we use a `[patch]` here to override the github repository with our local
-# vendored copy.
-[patch."https://github.com/rust-lang/cargo"]
-cargo = { path = "src/tools/cargo" }
 
 [patch."https://github.com/rust-lang/rustfmt"]
 # Similar to Cargo above we want the RLS to use a vendored version of `rustfmt`
