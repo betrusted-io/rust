@@ -1,9 +1,6 @@
 [submodule "src/rust-installer"]
 	path = src/tools/rust-installer
 	url = https://github.com/rust-lang/rust-installer.git
-[submodule "src/tools/rls"]
-	path = src/tools/rls
-	url = https://github.com/rust-lang/rls.git
 [submodule "library/stdarch"]
 	path = library/stdarch
 	url = https://github.com/rust-lang/stdarch.git
