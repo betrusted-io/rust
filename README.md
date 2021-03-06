@@ -27,7 +27,7 @@ cargo build \
     --target riscv32imac-unknown-xous-elf \
     -Zbinary-dep-depinfo \
     --release \
-    --features "panic-unwind backtrace compiler-builtins-c" \
+    --features "panic-unwind backtrace compiler-builtins-c compiler-builtins-mem" \
     --manifest-path "library/test/Cargo.toml"
 ```
 
