@@ -44,6 +44,22 @@ cp target/riscv32imac-unknown-xous-elf/release/deps/*.rlib $(rustc --print sysro
 cargo build --target riscv32imac-unknown-xous-elf
 ```
 
+## Building on Windows Powershell
+
+```powershell
+$env:RUST_TARGET_PATH=$(rustc --print sysroot)
+$env:CARGO_PROFILE_RELEASE_DEBUG=0
+$env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="false"
+$env:RUSTC_BOOTSTRAP=1
+$env:__CARGO_DEFAULT_LIB_METADATA="stablestd"
+cargo build `
+    --target riscv32imac-unknown-xous-elf `
+    -Zbinary-dep-depinfo `
+    --release `
+    --features "panic-unwind backtrace compiler-builtins-c compiler-builtins-mem" `
+    --manifest-path "library/test/Cargo.toml"
+```
+
 ## Target Files
 
 Rust supports specifying a Json file to define a custom target. 
