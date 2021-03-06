@@ -267,9 +267,6 @@ name = "bytecount"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0017894339f586ccb943b01b9555de56770c11cda818e7e3d8bd93f4ed7f46e"
-dependencies = [
- "packed_simd",
-]
 
 [[package]]
 name = "byteorder"
@@ -350,18 +347,6 @@ dependencies = [
  "url 2.1.1",
  "walkdir",
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "cargo-miri"
-version = "0.1.0"
-dependencies = [
- "directories",
- "rustc-workspace-hack",
- "rustc_version",
- "serde",
- "serde_json",
- "vergen",
 ]
 
 [[package]]
@@ -581,17 +566,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e56268c17a6248366d66d4a47a3381369d068cce8409bb1716ed77ea32163bb"
 dependencies = [
  "cc",
-]
-
-[[package]]
-name = "colored"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3616f750b84d8f0de8a58bda93e08e2a81ad3f523089b05f1dffecab48c6cbd"
-dependencies = [
- "atty",
- "lazy_static",
- "winapi 0.3.9",
 ]
 
 [[package]]
@@ -914,15 +888,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "directories"
-version = "3.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8fed639d60b58d0f53498ab13d26f621fd77569cc6edb031f4cc36a2ad9da0f"
-dependencies = [
- "dirs-sys",
-]
-
-[[package]]
 name = "dirs"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1218,17 +1183,6 @@ name = "getrandom"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7abc8dd8451921606d809ba32e95b6111925cd2906060d2dcc29c070220503eb"
-dependencies = [
- "cfg-if 0.1.10",
- "libc",
- "wasi",
-]
-
-[[package]]
-name = "getrandom"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee8025cf36f917e6a52cce185b7c7177689b838b7ec138364e50cc2277a56cf4"
 dependencies = [
  "cfg-if 0.1.10",
  "libc",
@@ -2060,24 +2014,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "miri"
-version = "0.1.0"
-dependencies = [
- "colored",
- "compiletest_rs",
- "env_logger 0.7.1",
- "getrandom 0.2.0",
- "hex 0.4.2",
- "libc",
- "log",
- "rand",
- "rustc-workspace-hack",
- "rustc_version",
- "shell-escape",
- "smallvec 1.4.2",
-]
-
-[[package]]
 name = "net2"
 version = "0.2.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2216,15 +2152,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53cdc5b785b7a58c5aad8216b3dfa114df64b0b06ae6e1501cef91df2fbdf8f9"
 dependencies = [
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "packed_simd"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a85ea9fc0d4ac0deb6fe7911d38786b32fc11119afd9e9d38b84ff691ce64220"
-dependencies = [
- "cfg-if 0.1.10",
 ]
 
 [[package]]
@@ -2645,7 +2572,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a6b1679d49b24bbfe0c803429aa1874472f50d9b363131f0e89fc356b544d03"
 dependencies = [
- "getrandom 0.1.14",
+ "getrandom",
  "libc",
  "rand_chacha",
  "rand_core",
@@ -2669,7 +2596,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19"
 dependencies = [
- "getrandom 0.1.14",
+ "getrandom",
 ]
 
 [[package]]
@@ -2745,7 +2672,7 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09b23093265f8d200fa7b4c2c76297f47e681c655f6f1285a8780d6a022f7431"
 dependencies = [
- "getrandom 0.1.14",
+ "getrandom",
  "redox_syscall",
  "rust-argon2",
 ]
@@ -4286,16 +4213,17 @@ dependencies = [
 [[package]]
 name = "rustfmt-config_proc_macro"
 version = "0.2.0"
+source = "git+https://github.com/rust-lang/rustfmt?branch=rustfmt-1.4.30#8c6769d72de01034cf342aa141846d49cc637a4d"
 dependencies = [
  "proc-macro2",
  "quote",
- "serde",
  "syn",
 ]
 
 [[package]]
 name = "rustfmt-nightly"
 version = "1.4.30"
+source = "git+https://github.com/rust-lang/rustfmt?branch=rustfmt-1.4.30#8c6769d72de01034cf342aa141846d49cc637a4d"
 dependencies = [
  "annotate-snippets 0.6.1",
  "anyhow",
@@ -5411,16 +5339,6 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
-
-[[package]]
-name = "vergen"
-version = "3.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ce50d8996df1f85af15f2cd8d33daae6e479575123ef4314a51a70a230739cb"
-dependencies = [
- "bitflags",
- "chrono",
-]
 
 [[package]]
 name = "version_check"

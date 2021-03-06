@@ -21,9 +21,6 @@ members = [
   "src/tools/rust-demangler",
   "src/tools/rustdoc",
   "src/tools/rls",
-  "src/tools/rustfmt",
-  "src/tools/miri",
-  "src/tools/miri/cargo-miri",
   "src/tools/rustdoc-themes",
   "src/tools/unicode-table-generator",
   "src/tools/expand-yaml-anchors",
@@ -74,12 +71,6 @@ adler.debug = 0
 gimli.debug = 0
 miniz_oxide.debug = 0
 object.debug = 0
-
-[patch."https://github.com/rust-lang/rustfmt"]
-# Similar to Cargo above we want the RLS to use a vendored version of `rustfmt`
-# that we're shipping as well (to ensure that the rustfmt in RLS and the
-# `rustfmt` executable are the same exact version).
-rustfmt-nightly = { path = "src/tools/rustfmt" }
 
 [patch.crates-io]
 # See comments in `src/tools/rustc-workspace-hack/README.md` for what's going on

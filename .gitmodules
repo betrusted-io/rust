@@ -4,9 +4,6 @@
 [submodule "src/tools/rls"]
 	path = src/tools/rls
 	url = https://github.com/rust-lang/rls.git
-[submodule "src/tools/miri"]
-	path = src/tools/miri
-	url = https://github.com/rust-lang/miri.git
 [submodule "library/stdarch"]
 	path = library/stdarch
 	url = https://github.com/rust-lang/stdarch.git
