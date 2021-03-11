@@ -38,6 +38,10 @@ rand = "0.7"
 [target.'cfg(any(all(target_family = "wasm", not(target_os = "emscripten")), all(target_vendor = "fortanix", target_env = "sgx")))'.dependencies]
 dlmalloc = { version = "0.2.3", features = ['rustc-dep-of-std'] }
 
+[target.'cfg(target_os = "xous")'.dependencies]
+dlmalloc-xous = { path = "../dlmalloc-xous", features = ['rustc-dep-of-std'] }
+xous = {version = "0.9.7", features = ['rustc-dep-of-std'], default-features = false }
+
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 fortanix-sgx-abi = { version = "0.3.2", features = ['rustc-dep-of-std'] }
 
