@@ -2011,27 +2011,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rkyv"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ba0dea2b9efaa468bc76d09a06741839d84c70a746edb1793d9653828532666"
-dependencies = [
- "memoffset 0.6.3",
- "rkyv_derive",
-]
-
-[[package]]
-name = "rkyv_derive"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddf04e93b51e6cfcc0eeee3bbf121d978303b83fbf2dc49085cff7855478fd4b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "rls-data"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3928,26 +3907,11 @@ dependencies = [
 [[package]]
 name = "xous"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "264a85576d6f04242bb8471cfab4f46e1090fd3bab7a3e4b509a033240971d27"
 dependencies = [
- "bitflags",
+ "compiler_builtins",
  "hex",
  "lazy_static",
- "rkyv",
- "xous-macros",
-]
-
-[[package]]
-name = "xous-macros"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fcf9ae34e7ea66cf8db98664e4d36ef17561bdac8c2bfdcfc0aa9d56cbf4cc0"
-dependencies = [
- "proc-macro2",
- "quote",
- "rand 0.7.3",
- "syn",
+ "rustc-std-workspace-core",
 ]
 
 [[package]]
