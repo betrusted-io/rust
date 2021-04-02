@@ -9,7 +9,6 @@ pub mod env;
 pub mod fs;
 #[path = "../unsupported/io.rs"]
 pub mod io;
-pub mod mem;
 pub mod mutex;
 #[path = "../unsupported/net.rs"]
 pub mod net;
