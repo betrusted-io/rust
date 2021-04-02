@@ -518,7 +518,7 @@ dependencies = [
  "crossbeam-utils 0.7.2",
  "lazy_static",
  "maybe-uninit",
- "memoffset 0.5.5",
+ "memoffset",
  "scopeguard",
 ]
 
@@ -1240,15 +1240,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "memoffset"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "157b4208e3059a8f9e78d559edc658e13df41410cb3ae03979c83130067fdd87"
-dependencies = [
- "autocfg",
-]
-
-[[package]]
 name = "merge"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1843,27 +1834,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3acd125665422973a33ac9d3dd2df85edad0f4ae9b00dafb1a05e43a9f5ef8e7"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "rkyv"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ba0dea2b9efaa468bc76d09a06741839d84c70a746edb1793d9653828532666"
-dependencies = [
- "memoffset 0.6.1",
- "rkyv_derive",
-]
-
-[[package]]
-name = "rkyv_derive"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddf04e93b51e6cfcc0eeee3bbf121d978303b83fbf2dc49085cff7855478fd4b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -3726,27 +3696,12 @@ dependencies = [
 
 [[package]]
 name = "xous"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41851044c115a3ea04bb7667c8228056fe9f8fee6b052909b914fb6cd0768af2"
+version = "0.1.2"
 dependencies = [
- "bitflags",
+ "compiler_builtins",
  "hex",
  "lazy_static",
- "rkyv",
- "xous-macros",
-]
-
-[[package]]
-name = "xous-macros"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fcf9ae34e7ea66cf8db98664e4d36ef17561bdac8c2bfdcfc0aa9d56cbf4cc0"
-dependencies = [
- "proc-macro2",
- "quote",
- "rand",
- "syn",
+ "rustc-std-workspace-core",
 ]
 
 [[package]]
