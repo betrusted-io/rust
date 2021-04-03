@@ -41,9 +41,5 @@ pub mod guard {
 }
 
 pub fn my_id() -> u32 {
-    if let Ok(xous::Result::ThreadID(tid)) = xous::current_tid() {
-        tid as u32
-    } else {
-        0
-    }
+    xous::current_tid().map(|tid| tid as u32).unwrap_or_default()
 }
