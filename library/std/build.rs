@@ -31,7 +31,8 @@ fn main() {
         || target.contains("espidf")
         || target.contains("solid")
         || target.contains("nintendo-3ds")
-    {
+        || target.contains("xous")
+        {
         // These platforms don't have any special requirements.
     } else {
         // This is for Cargo's build-std support, to mark std as unstable for
