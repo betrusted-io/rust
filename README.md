@@ -47,8 +47,8 @@ cargo build --target riscv32imac-unknown-xous-elf
 ## Building on Windows Powershell
 
 ```powershell
-Copy-Item riscv32imac-unknown-xous-elf.json $(rustc --print sysroot)
 $env:RUST_TARGET_PATH=$(rustc --print sysroot)
+Copy-Item riscv32imac-unknown-xous-elf.json $env:RUST_TARGET_PATH
 $env:CARGO_PROFILE_RELEASE_DEBUG=0
 $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="false"
 $env:RUSTC_BOOTSTRAP=1
