@@ -2,6 +2,7 @@
 members = [
   "src/bootstrap",
   "compiler/rustc",
+  "library/dlmalloc-xous",
   "library/std",
   "library/test",
   "src/rustdoc-json-types",
