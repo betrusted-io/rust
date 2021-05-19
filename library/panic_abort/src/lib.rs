@@ -42,7 +42,7 @@ pub unsafe extern "C" fn __rust_start_panic(_payload: *mut &mut dyn BoxMeUp) -> 
             unsafe fn abort() -> ! {
                 libc::abort();
             }
-        } else if #[cfg(any(target_os = "hermit",
+        } else if #[cfg(any(target_os = "hermit", target_os = "xous",
                             all(target_vendor = "fortanix", target_env = "sgx")
         ))] {
             unsafe fn abort() -> ! {
