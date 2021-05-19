@@ -4,6 +4,10 @@ use xous::{
     ScalarMessage, CID, SID,
 };
 
+/// Messages will get split into chunks that are, at most, this
+/// number of bytes.
+const MESSAGE_CHUNK_SIZE: usize = 4096;
+
 pub struct Stdin;
 pub struct Stdout {
     mem: Option<MemoryRange>,
@@ -39,7 +43,7 @@ impl Stdout {
             }
         }
         if self.mem.is_none() {
-            self.mem = Some(map_memory(None, None, 4096, MEM_READ_WRITE).unwrap());
+            self.mem = Some(map_memory(None, None, MESSAGE_CHUNK_SIZE, MEM_READ_WRITE).unwrap());
         }
     }
 }
@@ -49,7 +53,7 @@ impl io::Write for Stdout {
         self.ensure_connection();
         let mem = &self.mem.unwrap();
         let connection = unsafe { LOG_SERVER_CONNECTION.unwrap() };
-        let s = unsafe { core::slice::from_raw_parts_mut(mem.as_mut_ptr(), 4096) };
+        let s = unsafe { core::slice::from_raw_parts_mut(mem.as_mut_ptr(), MESSAGE_CHUNK_SIZE) };
         for chunk in buf.chunks(s.len()) {
             for (dest, src) in s.iter_mut().zip(chunk) {
                 *dest = *src;
@@ -61,10 +65,6 @@ impl io::Write for Stdout {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        // self.ensure_connection();
-        // unsafe { STDOUT_STRING_BUFFER.as_mut().unwrap() }
-        //     .lend(unsafe { LOG_SERVER_CONNECTION.unwrap() }, 1)
-        //     .unwrap();
         Ok(())
     }
 }
@@ -91,6 +91,7 @@ pub fn is_ebadf(_err: &io::Error) -> bool {
     true
 }
 
+#[derive(Copy, Clone)]
 pub struct PanicWriter {
     conn: CID,
 }
@@ -103,8 +104,10 @@ impl PanicWriter {
     fn group_or_null(data: &[u8], offset: usize) -> usize {
         let start = offset * core::mem::size_of::<usize>();
         let mut out_array = [0u8; core::mem::size_of::<usize>()];
-        for i in 0..core::mem::size_of::<usize>() {
-            out_array[i] = if i + start < data.len() { data[start + i] } else { 0 };
+        if start < data.len() {
+            for (dest, src) in out_array.iter_mut().zip(&data[start..]) {
+                *dest = *src;
+            }
         }
         usize::from_le_bytes(out_array)
     }
@@ -126,19 +129,26 @@ impl io::Write for PanicWriter {
         }
         Ok(s.len())
     }
+
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
 }
 
-pub fn panic_output() -> Option<impl io::Write> {
-    if let Ok(connection) = xous::try_connect(SID::from_bytes(b"xous-log-server ").unwrap()) {
-        let pw = PanicWriter { conn: connection };
+use crate::cell::RefCell;
+thread_local! { static PANIC_WRITER: RefCell<Option<PanicWriter>> = RefCell::new(None) }
 
-        // Send the "We're panicking" message (1000).
-        try_send_message(connection, Message::new_scalar(1000, 0, 0, 0, 0)).ok();
-        Some(pw)
-    } else {
-        None
-    }
+pub fn panic_output() -> Option<impl io::Write> {
+    PANIC_WRITER.with(|pwr| {
+        if pwr.borrow().is_none() {
+            let connection =
+                xous::try_connect(SID::from_bytes(b"xous-log-server ").unwrap()).unwrap();
+            let pw = PanicWriter { conn: connection };
+
+            // Send the "We're panicking" message (1000).
+            try_send_message(connection, Message::new_scalar(1000, 0, 0, 0, 0)).ok();
+            *pwr.borrow_mut() = Some(pw);
+        }
+        *pwr.borrow()
+    })
 }
