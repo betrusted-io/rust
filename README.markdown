@@ -53,14 +53,16 @@ $env:CARGO_PROFILE_RELEASE_DEBUG=0
 $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="false"
 $env:RUSTC_BOOTSTRAP=1
 $env:__CARGO_DEFAULT_LIB_METADATA="stablestd"
+Remove-Item .\target\riscv32imac-unknown-xous-elf\release\deps\*.rlib
 cargo build `
     --target riscv32imac-unknown-xous-elf `
     -Zbinary-dep-depinfo `
     --release `
     --features "panic-unwind backtrace compiler-builtins-c compiler-builtins-mem" `
     --manifest-path "library/test/Cargo.toml"
-New-Item -Type Directory -Path "$(rustc --print sysroot)\lib\rustlib\riscv32imac-unknown-xous-elf\lib"
-Copy-Item target\riscv32imac-unknown-xous-elf\release\deps\*.rlib "$(rustc --print sysroot)\lib\rustlib\riscv32imac-unknown-xous-elf\lib"
+New-Item -Type Directory -Path "$env:RUST_TARGET_PATH\lib\rustlib\riscv32imac-unknown-xous-elf\lib"
+Remove-Item "$env:RUST_TARGET_PATH\lib\rustlib\riscv32imac-unknown-xous-elf\lib\*.rlib"
+Copy-Item target\riscv32imac-unknown-xous-elf\release\deps\*.rlib "$env:RUST_TARGET_PATH\lib\rustlib\riscv32imac-unknown-xous-elf\lib"
 ```
 
 ## Target Files
