@@ -11,12 +11,12 @@ pub use crate::sys_common::os_str_bytes as os_str;
 use crate::os::raw::c_char;
 
 extern "C" {
-    fn main();
+    fn main() -> u32;
 }
 
 #[no_mangle]
 pub fn _start() {
-    unsafe { main() };
+    xous::syscall::terminate_process(unsafe { main() });
 }
 
 #[cfg(not(test))]
