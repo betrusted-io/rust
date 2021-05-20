@@ -142,7 +142,7 @@ pub fn panic_output() -> Option<impl io::Write> {
     PANIC_WRITER.with(|pwr| {
         if pwr.borrow().is_none() {
             let connection =
-                xous::try_connect(SID::from_bytes(b"xous-log-server ").unwrap()).unwrap();
+                xous::connect(SID::from_bytes(b"xous-log-server ").unwrap()).unwrap();
             let pw = PanicWriter { conn: connection };
 
             // Send the "We're panicking" message (1000).
