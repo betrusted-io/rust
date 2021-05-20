@@ -95,10 +95,11 @@ pub fn home_dir() -> Option<PathBuf> {
     None
 }
 
-pub fn exit(_code: i32) -> ! {
-    crate::intrinsics::abort()
+pub fn exit(code: i32) -> ! {
+    use xous::syscall::terminate_process;
+    terminate_process(code as u32);
 }
 
 pub fn getpid() -> u32 {
-    panic!("no pids on this platform")
+    xous::syscall::current_pid().unwrap().get() as u32
 }
