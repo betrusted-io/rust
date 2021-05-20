@@ -39,10 +39,11 @@ pub use common::*;
 #[no_mangle]
 // NB. used by both libunwind and libpanic_abort
 pub extern "C" fn __rust_abort() {
-    use xous::syscall::wait_event;
-    loop {
-        wait_event();
-    }
-    use xous::syscall::terminate_process;
-    terminate_process();
+    xous::syscall::terminate_process(1);
+}
+
+#[cfg(not(test))]
+#[no_mangle]
+pub extern "C" fn abort() {
+    xous::syscall::terminate_process(1);
 }
