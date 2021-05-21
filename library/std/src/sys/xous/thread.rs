@@ -80,7 +80,7 @@ impl Thread {
     }
 
     pub fn join(self) {
-        // match self.0 {}
+        xous::syscall::join_thread(self.tid).unwrap();
     }
 }
 
