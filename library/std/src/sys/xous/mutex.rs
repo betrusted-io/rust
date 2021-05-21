@@ -39,8 +39,6 @@ impl Mutex {
     pub unsafe fn destroy(&self) {}
 }
 
-// All empty stubs because this platform does not yet support threads, so lock
-// acquisition always succeeds.
 pub struct ReentrantMutex {
     owner: AtomicU32,
     recursions: UnsafeCell<u32>,
