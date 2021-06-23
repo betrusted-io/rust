@@ -20,8 +20,6 @@ pub mod pipe;
 #[path = "../unsupported/process.rs"]
 pub mod process;
 pub mod rwlock;
-#[path = "../unsupported/stack_overflow.rs"]
-pub mod stack_overflow;
 pub mod stdio;
 pub mod thread;
 #[path = "../unsupported/thread_local_dtor.rs"]
