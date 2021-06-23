@@ -20,7 +20,12 @@ pub fn _start() {
 }
 
 #[cfg(not(test))]
-pub fn init() {}
+pub unsafe fn init(_argc: isize, _argv: *const *const u8) {
+}
+
+// SAFETY: must be called only once during runtime cleanup.
+// NOTE: this is not guaranteed to run, for example when the program aborts.
+pub unsafe fn cleanup() {}
 
 pub fn unsupported<T>() -> std_io::Result<T> {
     Err(unsupported_err())
