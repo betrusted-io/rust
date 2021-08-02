@@ -1,6 +1,6 @@
 name: Rust for Xous
 
-on: [push, create]
+on: [push]
 
 jobs:
   build-libstd:
