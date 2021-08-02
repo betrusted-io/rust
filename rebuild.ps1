@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 
-$env:RUST_TARGET_PATH = $(rustc --print sysroot)
+#$env:RUST_TARGET_PATH = $(rustc --print sysroot)
+$rust_sysroot = $(rustc --print sysroot)
 $env:CARGO_PROFILE_RELEASE_DEBUG = 0
 $env:CARGO_PROFILE_RELEASE_OPT_LEVEL = ""
 $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS = "true"
@@ -8,7 +9,8 @@ $env:RUSTC_BOOTSTRAP = 1
 $env:__CARGO_DEFAULT_LIB_METADATA = "stablestd"
 
 $src_path = ".\target\riscv32imac-unknown-xous-elf\release\deps"
-$dest_path = "$env:RUST_TARGET_PATH\lib\rustlib\riscv32imac-unknown-xous-elf\lib"
+$dest_path = "$rust_sysroot\lib\rustlib\riscv32imac-unknown-xous-elf"
+$dest_lib_path = "$dest_path\lib"
 
 function Get-ItemBaseName {
     param ($ItemName)
@@ -19,8 +21,16 @@ function Get-ItemBaseName {
     # return $result
 }
 
+if (-Not( Test-Path $dest_lib_path)) {
+    New-Item -Path $dest_lib_path -ItemType Directory
+}
+
+if (-Not(Test-Path "$dest_path\target.json")) {
+    Copy-Item "riscv32imac-unknown-xous-elf.json" "$dest_path\target.json"
+}
+
 # Remove stale objects
-Remove-Item "$dest_path\*.rlib"
+Remove-Item "$dest_lib_path\*.rlib"
 
 $previous_libraries = @{}
 
@@ -55,4 +65,4 @@ ForEach ($item in Get-ChildItem "$src_path\*.rlib") {
     }
 }
 
-Copy-Item "$src_path\*.rlib" "$dest_path"
+Copy-Item "$src_path\*.rlib" "$dest_lib_path"
