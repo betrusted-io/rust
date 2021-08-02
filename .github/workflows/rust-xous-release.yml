@@ -28,7 +28,7 @@ jobs:
       - name: Install riscv32imac-unknown-xous-elf toolchain file
         run: |
           mkdir -p $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib \
-          && cp riscv32imac-unknown-xous-elf.json $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf
+          && cp riscv32imac-unknown-xous-elf.json $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/target.json
 
       - name: Build libstd
         run: |
