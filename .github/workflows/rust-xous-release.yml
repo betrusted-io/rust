@@ -14,7 +14,7 @@ jobs:
 
       - name: Determine Rust version
         shell: bash
-        run: echo "##[set-output name=version;]$(echo ${GITHUB_REF#refs/heads/} | cut -d- -f1)"
+        run: echo "##[set-output name=version;]$(echo ${GITHUB_REF#refs/heads/} | cut -d- -f1 | cut -d. -f1,2,3)"
         id: extract_rust_version
 
       - name: Install Rust toolchain v${{ steps.extract_rust_version.outputs.version }}
