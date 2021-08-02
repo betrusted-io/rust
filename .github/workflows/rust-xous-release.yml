@@ -3,26 +3,28 @@ name: Rust for Xous
 on: [push]
 
 jobs:
-  build:
+  build-libstd:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v1
+        submodules: true
 
-      - name: Extract Rust version
+      - name: Determine Rust version
         shell: bash
         run: echo "##[set-output name=version;]$(echo ${GITHUB_REF#refs/heads/} | cut -d- -f1)"
         id: extract_rust_version
 
-      - name: Install correct Rust toolchain
+      - name: Install Rust toolchain v${{ steps.extract_rust_version.outputs.version }}
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ steps.extract_rust_version.outputs.version }}
           default: true
           override: true
+          target: riscv32imac-unknown-none-elf
 
-      - name: Install toolchain file
+      - name: Install riscv32imac-unknown-xous-elf toolchain file
         run: |
           mkdir -p $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib \
           && cp riscv32imac-unknown-xous-elf.json $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf
@@ -43,6 +45,7 @@ jobs:
           RUSTC_BOOTSTRAP: 1
           RUSTFLAGS: -Cforce-unwind-tables=yes -Cembed-bitcode=yes
           __CARGO_DEFAULT_LIB_METADATA: stablestd
+
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
