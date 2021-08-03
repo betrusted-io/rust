@@ -1,5 +1,6 @@
 use crate::ffi::CStr;
 use crate::io;
+use crate::num::NonZeroUsize;
 use crate::time::Duration;
 
 pub struct Thread {
@@ -82,6 +83,11 @@ impl Thread {
     pub fn join(self) {
         xous::syscall::join_thread(self.tid).unwrap();
     }
+}
+
+pub fn available_concurrency() -> io::Result<NonZeroUsize> {
+    // We're unicore right now.
+    Ok(unsafe { NonZeroUsize::new_unchecked(1) })
 }
 
 pub mod guard {
