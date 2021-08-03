@@ -6,6 +6,7 @@ $env:CARGO_PROFILE_RELEASE_DEBUG = 0
 $env:CARGO_PROFILE_RELEASE_OPT_LEVEL = ""
 $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS = "true"
 $env:RUSTC_BOOTSTRAP = 1
+$env:RUSTFLAGS = "-Cforce-unwind-tables=yes -Cembed-bitcode=yes"
 $env:__CARGO_DEFAULT_LIB_METADATA = "stablestd"
 
 $src_path = ".\target\riscv32imac-unknown-xous-elf\release\deps"
