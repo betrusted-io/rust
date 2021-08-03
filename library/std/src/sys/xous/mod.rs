@@ -22,7 +22,6 @@ pub mod process;
 pub mod rwlock;
 pub mod stdio;
 pub mod thread;
-#[path = "../unsupported/thread_local_dtor.rs"]
 pub mod thread_local_dtor;
 pub mod thread_local_key;
 #[path = "../unsupported/time.rs"]
