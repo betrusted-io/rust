@@ -113,7 +113,7 @@ struct Node {
     next: *mut Node,
 }
 
-unsafe fn register_dtor(key: Key, dtor: Dtor) {
+pub unsafe fn register_dtor(key: Key, dtor: Dtor) {
     let mut node = ManuallyDrop::new(Box::new(Node { key, dtor, next: ptr::null_mut() }));
 
     let mut head = DTORS.load(SeqCst);
