@@ -21,7 +21,7 @@ fn tls_ptr() -> *mut usize {
         let syscall =
             xous::SysCall::MapMemory(None, None, xous::MemorySize::new(4096).unwrap(), 0b110);
         if let Ok(xous::Result::MemoryRange(mem)) = xous::rsyscall(syscall) {
-            tls_ptr_addr = mem.addr.get();
+            tls_ptr_addr = mem.as_ptr() as usize;
             unsafe {
                 (tls_ptr_addr as *mut usize).write_volatile(0);
                 asm!(
