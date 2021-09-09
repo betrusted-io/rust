@@ -18,14 +18,16 @@ cd -
 
 ## Building From Source
 
-1. Copy `riscv32imac-unknown-xous-elf.json` to your Rust sysroot under a new target directory. This can be done on Unix-like systems by running:
+1. Install a RISC-V toolchain, and ensure it's in your path. Set `CC` and `AR` to point to the toolchain's -gcc and -ar binaries.
+2. Patch `src/llvm-project/compiler-rt/lib/builtins/int_types.h` to remove `#define CRT_HAS_128BIT`.
+3. Copy `riscv32imac-unknown-xous-elf.json` to your Rust sysroot under a new target directory. This can be done on Unix-like systems by running:
 
 ```
 mkdir -p $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib
 cp riscv32imac-unknown-xous-elf.json $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/target.json
 ```
 
-2. Compile the standard library:
+4. Compile the standard library:
 
 ```
 CARGO_PROFILE_RELEASE_DEBUG=0 \
@@ -40,14 +42,14 @@ cargo build \
     --manifest-path "library/test/Cargo.toml"
 ```
 
-3. Install the standard library to your new sysroot:
+5. Install the standard library to your new sysroot:
 
 ```
 mkdir -p $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib/
 cp target/riscv32imac-unknown-xous-elf/release/deps/*.rlib $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib/
 ```
 
-4. Use the new stdlib by setting `--target`:
+6. Use the new stdlib by setting `--target`:
 
 ```
 cargo build --target riscv32imac-unknown-xous-elf
