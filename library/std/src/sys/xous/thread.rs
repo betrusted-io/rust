@@ -8,6 +8,7 @@ pub struct Thread {
 }
 
 pub const DEFAULT_MIN_STACK_SIZE: usize = 131072;
+pub const GUARD_PAGE_SIZE: usize = 4096;
 static mut TICKTIMER_CID: Option<xous::CID> = None;
 
 impl Thread {
@@ -15,21 +16,37 @@ impl Thread {
     pub unsafe fn new(stack: usize, p: Box<dyn FnOnce()>) -> io::Result<Thread> {
         let p = Box::into_raw(box p);
         let stack_size = crate::cmp::max(stack, 4096);
+
+        // No access to this page. Note: Write-only pages are illegal, and will
+        // cause an access violation.
+        let guard_page_pre = xous::map_memory(None, None, GUARD_PAGE_SIZE, 0b100 /* W */)
+            .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
+
+        // Stack sandwiched between guard pages
         let stack = xous::map_memory(None, None, stack_size, 0b111 /* R+W+X */)
+            .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
+
+        // No access to this page. Note: Write-only pages are illegal, and will
+        // cause an access violation.
+        let guard_page_post = xous::map_memory(None, None, GUARD_PAGE_SIZE, 0b100 /* W */)
             .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
         let call = xous::SysCall::CreateThread(xous::ThreadInit {
             call: thread_start as *mut usize as usize,
             stack,
             arg1: p as usize,
-            arg2: 0,
-            arg3: 0,
+            arg2: guard_page_pre.as_ptr() as usize,
+            arg3: guard_page_post.as_ptr() as usize,
             arg4: 0,
         });
         let result =
             xous::rsyscall(call).map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
-        extern "C" fn thread_start(main: *mut usize) -> *mut usize {
+        extern "C" fn thread_start(
+            main: *mut usize,
+            guard_page_pre: usize,
+            guard_page_post: usize,
+        ) -> *mut usize {
             unsafe {
                 // // Next, set up our stack overflow handler which may get triggered if we run
                 // // out of stack.
@@ -37,6 +54,14 @@ impl Thread {
                 // Finally, let's run some code.
                 Box::from_raw(main as *mut Box<dyn FnOnce()>)();
             }
+            xous::unmap_memory(unsafe {
+                xous::MemoryRange::new(guard_page_pre, GUARD_PAGE_SIZE).unwrap()
+            })
+            .unwrap();
+            xous::unmap_memory(unsafe {
+                xous::MemoryRange::new(guard_page_post, GUARD_PAGE_SIZE).unwrap()
+            })
+            .unwrap();
             crate::ptr::null_mut()
         }
 
