@@ -7,7 +7,7 @@ pub struct Thread {
     tid: xous::TID,
 }
 
-pub const DEFAULT_MIN_STACK_SIZE: usize = 4096;
+pub const DEFAULT_MIN_STACK_SIZE: usize = 131072;
 static mut TICKTIMER_CID: Option<xous::CID> = None;
 
 impl Thread {
