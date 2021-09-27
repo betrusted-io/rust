@@ -31,22 +31,26 @@ impl Thread {
         let guard_page_post = xous::map_memory(None, None, GUARD_PAGE_SIZE, 0b100 /* W */)
             .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
+        // Ensure that the pages are laid out like we expect them.
+        let pre_addr = guard_page_pre.as_ptr() as usize;
+        let stack_addr = stack.as_ptr() as usize;
+        let post_addr = guard_page_post.as_ptr() as usize;
+
+        assert_eq!(pre_addr + GUARD_PAGE_SIZE, stack_addr);
+        assert_eq!(pre_addr + GUARD_PAGE_SIZE + stack_size, post_addr);
+
         let call = xous::SysCall::CreateThread(xous::ThreadInit {
             call: thread_start as *mut usize as usize,
             stack,
             arg1: p as usize,
-            arg2: guard_page_pre.as_ptr() as usize,
-            arg3: guard_page_post.as_ptr() as usize,
+            arg2: pre_addr,
+            arg3: stack_size,
             arg4: 0,
         });
         let result =
             xous::rsyscall(call).map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
-        extern "C" fn thread_start(
-            main: *mut usize,
-            guard_page_pre: usize,
-            guard_page_post: usize,
-        ) -> *mut usize {
+        extern "C" fn thread_start(main: *mut usize, guard_page_pre: usize, stack_size: usize) {
             unsafe {
                 // // Next, set up our stack overflow handler which may get triggered if we run
                 // // out of stack.
@@ -54,15 +58,26 @@ impl Thread {
                 // Finally, let's run some code.
                 Box::from_raw(main as *mut Box<dyn FnOnce()>)();
             }
-            xous::unmap_memory(unsafe {
-                xous::MemoryRange::new(guard_page_pre, GUARD_PAGE_SIZE).unwrap()
-            })
-            .unwrap();
-            xous::unmap_memory(unsafe {
-                xous::MemoryRange::new(guard_page_post, GUARD_PAGE_SIZE).unwrap()
-            })
-            .unwrap();
-            crate::ptr::null_mut()
+
+            // Destroy TLS, which will free the TLS page
+            unsafe {
+                crate::sys::thread_local_key::destroy_tls();
+            }
+
+            // Deallocate the stack memory, along with the guard pages.
+            let mapped_memory_base = guard_page_pre;
+            let mapped_memory_length = GUARD_PAGE_SIZE + stack_size + GUARD_PAGE_SIZE;
+            unsafe {
+                asm!(
+                    "ecall",
+                    "ret",
+                    in("a0") xous::SysCallNumber::UnmapMemory as usize,
+                    in("a1") mapped_memory_base,
+                    in("a2") mapped_memory_length,
+                    in("ra") 0xff80_3000u32,
+                    options(nomem, nostack)
+                );
+            }
         }
 
         if let xous::Result::ThreadID(tid) = result {
