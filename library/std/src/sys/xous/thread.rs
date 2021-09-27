@@ -70,12 +70,17 @@ impl Thread {
             unsafe {
                 asm!(
                     "ecall",
-                    "ret",
                     in("a0") xous::SysCallNumber::UnmapMemory as usize,
                     in("a1") mapped_memory_base,
                     in("a2") mapped_memory_length,
-                    in("ra") 0xff80_3000u32,
                     options(nomem, nostack)
+                );
+            }
+
+            // Exit the thread by returning to the magic address 0xff80_3000u32
+            unsafe {
+                asm!("ret", in("a0") 0, in("ra") 0xff80_3000u32,
+                    options(nomem, nostack, noreturn)
                 );
             }
         }
