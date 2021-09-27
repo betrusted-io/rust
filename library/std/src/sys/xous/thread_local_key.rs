@@ -1,12 +1,26 @@
 use crate::mem::ManuallyDrop;
 use crate::ptr;
 use crate::sync::atomic::AtomicPtr;
+use crate::sync::atomic::AtomicUsize;
 use crate::sync::atomic::Ordering::SeqCst;
+
+/// Thread Local Storage
+/// Currently, we are limited to 1023 TLS entries. The entries
+/// live in a page of memory that's unique per-process, and is
+/// stored in the `$tp` register. If this register is 0, then
+/// TLS has not been initialized and thread cleanup can be skipped.
+///
+/// The index into this register is the `key`. This key is identical
+/// between all threads, but indexes a different offset within this
+/// pointer.
 
 pub type Key = usize;
 pub type Dtor = unsafe extern "C" fn(*mut u8);
 
 const TLS_MEMORY_SIZE: usize = 4096;
+
+/// TLS keys start at `1` to mimic POSIX.
+static TLS_KEY_INDEX: AtomicUsize = AtomicUsize::new(1);
 
 fn tls_ptr_addr() -> usize {
     let mut tp: usize;
@@ -19,6 +33,8 @@ fn tls_ptr_addr() -> usize {
     tp
 }
 
+/// Create an area of memory that's unique per thread. This area will
+/// contain all thread local pointers.
 fn tls_ptr() -> *mut usize {
     let mut tp = tls_ptr_addr();
 
@@ -34,7 +50,10 @@ fn tls_ptr() -> *mut usize {
         if let Ok(xous::Result::MemoryRange(mem)) = xous::rsyscall(syscall) {
             tp = mem.as_ptr() as usize;
             unsafe {
-                (tp as *mut usize).write_volatile(1);
+                // Key #0 is currently unused.
+                (tp as *mut usize).write_volatile(0);
+
+                // Set the thread's `$tp` register
                 asm!(
                     "mv tp, {}",
                     in(reg) tp,
@@ -47,20 +66,9 @@ fn tls_ptr() -> *mut usize {
     tp as *mut usize
 }
 
-fn get_dtors() -> &'static mut AtomicPtr<Node> {
-    let tp = tls_ptr();
-    unsafe { &mut *(tp.add(1).read_volatile() as *mut AtomicPtr<Node>) }
-}
-
-/// Allocate a new TLS value.
-/// The current TLS value is stored at the value pointed to by the
-/// `tp` register. As all accesses are defined as offsets of this
-/// address, and the destructor node is at offset 1, we begin at `2`.
+/// Allocate a new TLS key. These keys are shared among all threads.
 fn tls_alloc() -> usize {
-    let tp = tls_ptr();
-    let new_tls_val = unsafe { tp.read_volatile() } + 1;
-    unsafe { tp.write_volatile(new_tls_val) };
-    new_tls_val
+    TLS_KEY_INDEX.fetch_add(1, SeqCst)
 }
 
 #[inline]
@@ -74,13 +82,13 @@ pub unsafe fn create(dtor: Option<Dtor>) -> Key {
 
 #[inline]
 pub unsafe fn set(key: Key, value: *mut u8) {
-    assert!((key < 1022) && (key > 1));
+    assert!((key < 1022) && (key >= 1));
     unsafe { tls_ptr().add(key).write_volatile(value as usize) };
 }
 
 #[inline]
 pub unsafe fn get(key: Key) -> *mut u8 {
-    assert!((key < 1022) && (key > 1));
+    assert!((key < 1022) && (key >= 1));
     unsafe { tls_ptr().add(key).read_volatile() as *mut u8 }
 }
 
@@ -120,19 +128,21 @@ pub fn requires_synchronized_create() -> bool {
 // key but also a slot for the destructor queue on windows. An optimization for
 // another day!
 
+static DTORS: AtomicPtr<Node> = AtomicPtr::new(ptr::null_mut());
+
 struct Node {
     dtor: Dtor,
     key: Key,
     next: *mut Node,
 }
 
-pub unsafe fn register_dtor(key: Key, dtor: Dtor) {
+unsafe fn register_dtor(key: Key, dtor: Dtor) {
     let mut node = ManuallyDrop::new(Box::new(Node { key, dtor, next: ptr::null_mut() }));
 
-    let mut head = get_dtors().load(SeqCst);
+    let mut head = DTORS.load(SeqCst);
     loop {
         node.next = head;
-        match get_dtors().compare_exchange(head, &mut **node, SeqCst, SeqCst) {
+        match DTORS.compare_exchange(head, &mut **node, SeqCst, SeqCst) {
             Ok(_) => return, // nothing to drop, we successfully added the node to the list
             Err(cur) => head = cur,
         }
@@ -161,19 +171,17 @@ unsafe fn run_dtors() {
             break;
         }
         any_run = false;
-        let mut cur = get_dtors().load(SeqCst);
+        let mut cur = DTORS.load(SeqCst);
         while !cur.is_null() {
             let ptr = unsafe { get((*cur).key) };
 
-            // If this node still has a data pointer attached to it, attempt to run
-            // the destructor.
             if !ptr.is_null() {
                 unsafe { set((*cur).key, ptr::null_mut()) };
                 unsafe { ((*cur).dtor)(ptr as *mut _) };
                 any_run = true;
             }
 
-            cur = unsafe { (*cur).next };
+            unsafe { cur = (*cur).next };
         }
     }
 }
