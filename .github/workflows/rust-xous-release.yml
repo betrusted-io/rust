@@ -32,7 +32,8 @@ jobs:
         run: |
           rm -rf $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf \
           && mkdir -p $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib \
-          && cp riscv32imac-unknown-xous-elf.json $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/target.json
+          && cp riscv32imac-unknown-xous-elf.json $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/target.json \
+          && rustc --version | awk '{print $2}' > $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/RUST_VERSION
 
       - name: Build Rust libstd
         run: |
