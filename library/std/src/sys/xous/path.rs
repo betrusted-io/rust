@@ -24,7 +24,7 @@ pub fn is_verbatim_sep(_b: u8) -> bool {
 
 pub fn parse_prefix(prefix: &OsStr) -> Option<Prefix<'_>> {
     let b = prefix.bytes();
-    let mut components = b.splitn(2, |x| *x == b'|');
+    let mut components = b.splitn(2, |x| *x == b':');
     let p = components.next();
     let remainder = components.next();
     if remainder.is_some() {
