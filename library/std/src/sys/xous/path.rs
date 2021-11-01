@@ -34,5 +34,5 @@ pub fn parse_prefix(prefix: &OsStr) -> Option<Prefix<'_>> {
     }
 }
 
-pub const MAIN_SEP_STR: &str = "|";
-pub const MAIN_SEP: char = '|';
+pub const MAIN_SEP_STR: &str = ":";
+pub const MAIN_SEP: char = ':';
