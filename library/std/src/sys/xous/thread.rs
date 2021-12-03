@@ -1,3 +1,4 @@
+use super::unsupported;
 use crate::ffi::CStr;
 use crate::io;
 use crate::num::NonZeroUsize;
@@ -130,11 +131,6 @@ impl Thread {
     }
 }
 
-pub fn available_concurrency() -> io::Result<NonZeroUsize> {
-    // We're unicore right now.
-    Ok(unsafe { NonZeroUsize::new_unchecked(1) })
-}
-
 pub mod guard {
     pub type Guard = !;
     pub unsafe fn current() -> Option<Guard> {
@@ -143,6 +139,10 @@ pub mod guard {
     pub unsafe fn init() -> Option<Guard> {
         None
     }
+}
+
+pub fn available_parallelism() -> io::Result<NonZeroUsize> {
+    unsupported()
 }
 
 pub fn my_id() -> u32 {
