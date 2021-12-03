@@ -1,0 +1,66 @@
+name: Rust for Xous
+
+on: [push]
+
+jobs:
+  build-libstd:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup riscv gnu/gcc toolchain
+        uses: gregdavill/setup-riscv-gnu-toolchain@v1.0
+
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+
+      - name: Determine Rust version
+        shell: bash
+        run: echo "##[set-output name=version;]$(echo ${GITHUB_REF} | cut -d/ -f3 | cut -d- -f1 | cut -d. -f1,2,3)"
+        id: extract_rust_version
+
+      - name: Install Rust toolchain v${{ steps.extract_rust_version.outputs.version }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ steps.extract_rust_version.outputs.version }}
+          default: true
+          override: true
+          target: riscv32imac-unknown-none-elf
+
+      - name: Install riscv32imac-unknown-xous-elf toolchain file
+        run: |
+          rm -rf $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf \
+          && mkdir -p $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib \
+          && rustc --version | awk '{print $2}' > $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/RUST_VERSION
+
+      - name: Build Rust libstd
+        run: |
+          export RUST_COMPILER_RT_ROOT=$(pwd)/src/llvm-project/compiler-rt \
+          && rm -rf target \
+          && sed -i '/^#define CRT_HAS_128BIT/d' src/llvm-project/compiler-rt/lib/builtins/int_types.h \
+          && cargo build \
+            --target riscv32imac-unknown-xous-elf \
+            -Zbinary-dep-depinfo \
+            --release \
+            --features "panic-unwind compiler-builtins-c compiler-builtins-mem" \
+            --manifest-path "library/test/Cargo.toml" \
+          && cp target/riscv32imac-unknown-xous-elf/release/deps/*.rlib $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib \
+          && (dest=$(pwd) && cd $(rustc --print sysroot) && zip -r ${dest}/riscv32imac-unknown-xous_${{ steps.extract_rust_version.outputs.version }}.zip lib/rustlib/riscv32imac-unknown-xous-elf/)
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG: 0
+          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: true
+          RUSTC_BOOTSTRAP: 1
+          RUSTFLAGS: -Cforce-unwind-tables=yes -Cembed-bitcode=yes
+          __CARGO_DEFAULT_LIB_METADATA: stablestd
+          CC: riscv-none-embed-gcc
+          AR: riscv-none-embed-ar
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            riscv32imac-unknown-xous_${{ steps.extract_rust_version.outputs.version }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
