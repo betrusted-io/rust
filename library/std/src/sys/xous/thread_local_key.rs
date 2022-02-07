@@ -159,7 +159,7 @@ pub unsafe fn destroy_tls() {
     unsafe { run_dtors() };
 
     // Finally, free the TLS array
-    let tls_memory = xous::MemoryRange::new(tp, TLS_MEMORY_SIZE).unwrap();
+    let tls_memory = unsafe { xous::MemoryRange::new(tp, TLS_MEMORY_SIZE).unwrap() };
     let syscall = xous::SysCall::UnmapMemory(tls_memory);
     xous::rsyscall(syscall).unwrap();
 }
