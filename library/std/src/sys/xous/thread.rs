@@ -17,18 +17,45 @@ impl Thread {
         let p = Box::into_raw(box p);
         let stack_size = crate::cmp::max(stack, 4096);
 
+        // Allocate the whole thing, then divide it up after the fact. This ensures that
+        // even if there's a context switch during this function, the whole stack plus
+        // guard pages will remain contiguous.
+        let stack_plus_guard_pages = xous::map_memory(
+            None,
+            None,
+            stack_size + GUARD_PAGE_SIZE + GUARD_PAGE_SIZE,
+            0b111, /* R+W+X */
+        )
+        .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
+
         // No access to this page. Note: Write-only pages are illegal, and will
         // cause an access violation.
-        let guard_page_pre = xous::map_memory(None, None, GUARD_PAGE_SIZE, 0b100 /* W */)
+        let guard_page_pre = unsafe {
+            xous::MemoryRange::new(stack_plus_guard_pages.as_mut_ptr() as usize, GUARD_PAGE_SIZE)
+                .map_err(|code| io::Error::from_raw_os_error(code as i32))
+        }?;
+        xous::update_memory_flags(guard_page_pre, 0b100 /* W */)
             .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
         // Stack sandwiched between guard pages
-        let stack = xous::map_memory(None, None, stack_size, 0b111 /* R+W+X */)
-            .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
+        let stack = unsafe {
+            xous::MemoryRange::new(
+                stack_plus_guard_pages.as_mut_ptr().add(GUARD_PAGE_SIZE) as usize,
+                stack_size,
+            )
+            .map_err(|code| io::Error::from_raw_os_error(code as i32))
+        }?;
 
         // No access to this page. Note: Write-only pages are illegal, and will
         // cause an access violation.
-        let guard_page_post = xous::map_memory(None, None, GUARD_PAGE_SIZE, 0b100 /* W */)
+        let guard_page_post = unsafe {
+            xous::MemoryRange::new(
+                stack_plus_guard_pages.as_mut_ptr().add(GUARD_PAGE_SIZE + stack_size) as usize,
+                GUARD_PAGE_SIZE,
+            )
+            .map_err(|code| io::Error::from_raw_os_error(code as i32))
+        }?;
+        xous::update_memory_flags(guard_page_post, 0b100 /* W */)
             .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
         // Ensure that the pages are laid out like we expect them.
