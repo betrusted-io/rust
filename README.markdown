@@ -2,7 +2,7 @@
 
 Build stable Rust binaries for Xous! The curent supported version is Rust 1.58.1.
 
-## Updating an existing installation
+## Updating an Existing Installation / Automatic Installation
 
 At the moment, `xtask` will prompt you to download the Xous toolchain if it doesn't exist. Thus, the easiest way to upgrade is to simply delete the old version and re-run the build, as such:
 
@@ -21,7 +21,7 @@ Pop-Location
 cargo xtask app-image
 ```
 
-## Installing Prebuilt Releases
+## Manually Installing Prebuilt Releases
 
 1. Ensure you are running Rust 1.58.1. Future versions of Rust will need a different version of this software.
 2. Download the latest release from the [releases](https://github.com/betrusted-io/rust/releases/latest) page
