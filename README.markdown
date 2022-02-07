@@ -1,12 +1,32 @@
 # Rust Stable for Xous
 
-Build stable Rust binaries for Xous! This release targets Rust 1.55.0.
+Build stable Rust binaries for Xous! The curent supported version is Rust 1.58.1.
+
+## Updating an existing installation
+
+At the moment, `xtask` will prompt you to download the Xous toolchain if it doesn't exist. Thus, the easiest way to upgrade is to simply delete the old version and re-run the build, as such:
+
+Linux-like:
+```sh
+cd $(rustc --print sysroot)
+rm -rf lib/rustlib/riscv32imac-unknown-xous-elf # Remove any existing version
+cd -
+cargo xtask app-image # for example
+```
+Windows:
+```powershell
+Push-Location $(rustc --print sysroot)
+if (Test-Path lib\rustlib\riscv32imac-unknown-xous-elf) { Remove-Item -Recurse -Force lib\rustlib\riscv32imac-unknown-xous-elf }
+Pop-Location
+cargo xtask app-image
+```
 
 ## Installing Prebuilt Releases
 
-1. Ensure you are running Rust 1.55.0. Future versions of Rust will need a different version of this software.
+1. Ensure you are running Rust 1.58.1. Future versions of Rust will need a different version of this software.
 2. Download the latest release from the [releases](https://github.com/betrusted-io/rust/releases/latest) page
 3. Unzip the zipfile to your Rust sysroot. On Unix systems can do this with something like:
+
 ```sh
 cd $(rustc --print sysroot)
 wget https://github.com/betrusted-io/rust/releases/latest/download/riscv32imac-unknown-xous_1.55.0.zip
