@@ -2,6 +2,7 @@ use crate::ffi::CStr;
 use crate::io;
 use crate::num::NonZeroUsize;
 use crate::time::Duration;
+use core::arch::asm;
 
 pub struct Thread {
     tid: xous::TID,
