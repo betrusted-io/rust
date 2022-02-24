@@ -3,6 +3,7 @@ use crate::ptr;
 use crate::sync::atomic::AtomicPtr;
 use crate::sync::atomic::AtomicUsize;
 use crate::sync::atomic::Ordering::SeqCst;
+use core::arch::asm;
 
 /// Thread Local Storage
 /// Currently, we are limited to 1023 TLS entries. The entries
