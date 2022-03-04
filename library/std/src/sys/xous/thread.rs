@@ -1,6 +1,7 @@
 use crate::ffi::CStr;
 use crate::io;
 use crate::num::NonZeroUsize;
+use crate::sys::services::ticktimer;
 use crate::time::Duration;
 use core::arch::asm;
 
@@ -10,7 +11,6 @@ pub struct Thread {
 
 pub const DEFAULT_MIN_STACK_SIZE: usize = 131072;
 pub const GUARD_PAGE_SIZE: usize = 4096;
-static mut TICKTIMER_CID: Option<xous::CID> = None;
 
 impl Thread {
     // unsafe: see thread::Builder::spawn_unchecked for safety requirements
@@ -129,17 +129,6 @@ impl Thread {
     }
 
     pub fn sleep(dur: Duration) {
-        // Sleep is done by connecting to the ticktimer server and sending
-        // a blocking message.
-        if unsafe { TICKTIMER_CID.is_none() } {
-            unsafe {
-                TICKTIMER_CID = Some(
-                    xous::connect(xous::SID::from_bytes(b"ticktimer-server").unwrap()).unwrap(),
-                )
-            };
-        }
-        let cid = unsafe { TICKTIMER_CID.unwrap() };
-
         // Because the sleep server works on units of `usized milliseconds`, split
         // the messages up into these chunks. This means we may run into issues
         // if you try to sleep a thread for more than 49 days on a 32-bit system.
@@ -147,8 +136,11 @@ impl Thread {
         while millis > 0 {
             let sleep_duration =
                 if millis > (usize::MAX as _) { usize::MAX } else { millis as usize };
-            xous::send_message(cid, xous::Message::new_blocking_scalar(1, sleep_duration, 0, 0, 0))
-                .expect("Ticktimer: failure to send message to Ticktimer");
+            xous::send_message(
+                ticktimer(),
+                xous::Message::new_blocking_scalar(1 /* SleepMs */, sleep_duration, 0, 0, 0),
+            )
+            .expect("Ticktimer: failure to send message to Ticktimer");
             millis -= sleep_duration as u128;
         }
     }
