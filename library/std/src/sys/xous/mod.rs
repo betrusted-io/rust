@@ -22,6 +22,7 @@ pub mod pipe;
 pub mod process;
 pub mod rwlock;
 pub mod stdio;
+pub mod services;
 pub mod thread;
 pub mod thread_local_dtor;
 pub mod thread_local_key;
