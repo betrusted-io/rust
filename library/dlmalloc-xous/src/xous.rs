@@ -27,7 +27,7 @@ unsafe impl Allocator for System {
 
         let syscall = xous::SysCall::IncreaseHeap(size, 0b110);
         if let Ok(xous::Result::MemoryRange(mem)) = xous::rsyscall(syscall) {
-            let start = mem.addr.get() - size + mem.size.get();
+            let start = mem.as_ptr() as usize - size + mem.len();
             (start as *mut u8, size, 0)
         } else {
             (ptr::null_mut(), 0, 0)
