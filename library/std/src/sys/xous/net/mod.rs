@@ -3,8 +3,10 @@ use crate::cell::Cell;
 use crate::fmt;
 use crate::io::{self, IoSlice, IoSliceMut};
 use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, SocketAddrV4, SocketAddrV6};
+use crate::sync::Arc;
 use crate::sys::unsupported;
 use crate::time::Duration;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 mod dns;
 
@@ -17,6 +19,7 @@ macro_rules! unimpl {
     };
 }
 
+#[derive(Clone)]
 pub struct TcpStream {
     fd: usize,
     local_port: u16,
@@ -26,6 +29,7 @@ pub struct TcpStream {
     read_timeout: Cell<u32>,
     // milliseconds
     write_timeout: Cell<u32>,
+    handle_count: Arc<AtomicUsize>,
 }
 
 #[repr(C, align(4096))]
@@ -123,6 +127,7 @@ impl TcpStream {
                 peer_addr: *addr,
                 read_timeout: Cell::new(0),
                 write_timeout: Cell::new(0),
+                handle_count: Arc::new(AtomicUsize::new(1)),
             });
         }
         Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Invalid response"))
@@ -212,6 +217,12 @@ impl TcpStream {
                 }
                 Ok(length)
             } else {
+                if receive_request.raw[0] != 0 {
+                    return Err(io::Error::new_const(
+                        io::ErrorKind::InvalidInput,
+                        &"Unable to read",
+                    ));
+                }
                 Ok(0)
             }
         } else {
@@ -256,7 +267,6 @@ impl TcpStream {
         if let xous::Result::MemoryReturned(_offset, _valid) = response {
             let result = range.as_slice::<u32>();
             if result[0] != 0 {
-                // println!("Error in sending: {}", result[1]);
                 return Err(io::Error::new_const(
                     io::ErrorKind::InvalidInput,
                     &"Error when sending",
@@ -331,6 +341,11 @@ impl TcpStream {
     }
 
     pub fn shutdown(&self, _: Shutdown) -> io::Result<()> {
+        // If the handle count wasn't at 1, then there's nothing to do -- don't send the shutdown message.
+        if self.handle_count.fetch_sub(1, Ordering::Relaxed) != 1 {
+            return Ok(());
+        }
+
         xous::send_message(
             self.fd as _,
             xous::Message::new_blocking_scalar(34 | ((self.fd as usize) << 16), 0, 0, 0, 0),
@@ -340,7 +355,8 @@ impl TcpStream {
     }
 
     pub fn duplicate(&self) -> io::Result<TcpStream> {
-        unimpl!();
+        self.handle_count.fetch_add(1, Ordering::Relaxed);
+        Ok(self.clone())
     }
 
     pub fn set_linger(&self, _: Option<Duration>) -> io::Result<()> {
