@@ -86,11 +86,11 @@ mod ns {
                 token[1] = unsafe { response_ptr.add(3).read() };
                 token[2] = unsafe { response_ptr.add(4).read() };
                 token[3] = unsafe { response_ptr.add(5).read() };
-                println!("Successfully connected to {}. CID: {}, token: {:?}", name, cid, token);
+                // println!("Successfully connected to {}. CID: {}, token: {:?}", name, cid, token);
                 Some(cid)
             } else {
                 let error = unsafe { response_ptr.add(1).read() };
-                println!("Error connecting to {}. Type: {}  Code: {}", name, result, error);
+                // println!("Error connecting to {}. Type: {}  Code: {}", name, result, error);
                 None
             }
         } else {
