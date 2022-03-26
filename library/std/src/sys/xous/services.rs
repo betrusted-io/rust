@@ -4,6 +4,7 @@ static TICKTIMER_CID: AtomicU32 = AtomicU32::new(0);
 static NETWORK_CID: AtomicU32 = AtomicU32::new(0);
 static NAMESERVER_CID: AtomicU32 = AtomicU32::new(0);
 static DNS_CID: AtomicU32 = AtomicU32::new(0);
+static SYSTIME_CID: AtomicU32 = AtomicU32::new(0);
 
 mod ns {
     // By making this repr(C), the layout of this struct becomes well-defined
@@ -146,5 +147,16 @@ pub(crate) fn ticktimer() -> xous::CID {
 
     let cid = xous::connect(xous::SID::from_bytes(b"ticktimer-server").unwrap()).unwrap();
     TICKTIMER_CID.store(cid, Ordering::Relaxed);
+    cid
+}
+
+pub(crate) fn systime() -> xous::CID {
+    let cid = SYSTIME_CID.load(Ordering::Relaxed);
+    if cid != 0 {
+        return cid;
+    }
+
+    let cid = xous::connect(xous::SID::from_bytes(b"timeserverpublic").unwrap()).unwrap();
+    SYSTIME_CID.store(cid, Ordering::Relaxed);
     cid
 }
