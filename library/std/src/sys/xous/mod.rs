@@ -25,7 +25,6 @@ pub mod services;
 pub mod thread;
 pub mod thread_local_dtor;
 pub mod thread_local_key;
-#[path = "../unsupported/time.rs"]
 pub mod time;
 
 mod common;
