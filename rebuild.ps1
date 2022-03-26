@@ -1,3 +1,20 @@
+# Everything you push to main will do a test build, and let you know if it breaks.
+#
+# Things only get released if you tag it. And the actual build is based on the tag.
+# Without tagging it, nothing is released and it doesn't affect anyone at all, aside
+# from people building it from source.
+#
+# Look at the list of tags:
+#
+# https://github.com/betrusted-io/rust/tags
+#
+# We increment the 4th decimal. So far with the 1.59.0 branch, we've had two releases: 1.59.0.1 and 1.59.0.2. If you decided to release a new version of libstd, you would do:
+#
+# git tag -a 1.59.0.3 # Commit a message, indicating what you've changed
+# git push --tags
+#
+# That would build and release a new version.
+
 $ErrorActionPreference = "Stop"
 
 Function Test-CommandExists {
