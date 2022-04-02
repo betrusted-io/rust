@@ -90,8 +90,8 @@ mod ns {
                 // println!("Successfully connected to {}. CID: {}, token: {:?}", name, cid, token);
                 Some(cid)
             } else {
-                let error = unsafe { response_ptr.add(1).read() };
-                // println!("Error connecting to {}. Type: {}  Code: {}", name, result, error);
+                let _error = unsafe { response_ptr.add(1).read() };
+                // println!("Error connecting to {}. Type: {}  Code: {}", name, result, _error);
                 None
             }
         } else {
