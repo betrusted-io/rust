@@ -1,12 +1,11 @@
 use super::services;
-use crate::cell::Cell;
 use crate::fmt;
 use crate::io::{self, IoSlice, IoSliceMut};
 use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, SocketAddrV4, SocketAddrV6};
 use crate::sync::Arc;
 use crate::sys::unsupported;
 use crate::time::Duration;
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
 mod dns;
 
@@ -26,9 +25,9 @@ pub struct TcpStream {
     remote_port: u16,
     peer_addr: SocketAddr,
     // milliseconds
-    read_timeout: Cell<u32>,
+    read_timeout: Arc<AtomicU32>,
     // milliseconds
-    write_timeout: Cell<u32>,
+    write_timeout: Arc<AtomicU32>,
     handle_count: Arc<AtomicUsize>,
 }
 
@@ -52,6 +51,30 @@ pub struct GetAddress {
     raw: [u8; 4096],
 }
 
+fn sockaddr_to_buf(duration: Duration, addr: &SocketAddr, buf: &mut[u8]) {
+    // Construct the request.
+    let port_bytes = addr.port().to_le_bytes();
+    buf[0] = port_bytes[0];
+    buf[1] = port_bytes[1];
+    for (dest, src) in buf[2..].iter_mut().zip((duration.as_millis() as u64).to_le_bytes()) {
+        *dest = src;
+    }
+    match addr.ip() {
+        IpAddr::V4(addr) => {
+            buf[10] = 4;
+            for (dest, src) in buf[11..].iter_mut().zip(addr.octets()) {
+                *dest = src;
+            }
+        }
+        IpAddr::V6(addr) => {
+            buf[10] = 6;
+            for (dest, src) in buf[11..].iter_mut().zip(addr.octets()) {
+                *dest = src;
+            }
+        }
+    }
+}
+
 impl TcpStream {
     pub fn connect(socketaddr: io::Result<&SocketAddr>) -> io::Result<TcpStream> {
         Self::connect_timeout(socketaddr?, Duration::ZERO)
@@ -60,29 +83,7 @@ impl TcpStream {
     pub fn connect_timeout(addr: &SocketAddr, duration: Duration) -> io::Result<TcpStream> {
         let mut connect_request = ConnectRequest { raw: [0u8; 4096] };
 
-        // Construct the request.
-        let port_bytes = addr.port().to_le_bytes();
-        connect_request.raw[0] = port_bytes[0];
-        connect_request.raw[1] = port_bytes[1];
-        for (dest, src) in
-            connect_request.raw[2..].iter_mut().zip((duration.as_millis() as u64).to_le_bytes())
-        {
-            *dest = src;
-        }
-        match addr.ip() {
-            IpAddr::V4(addr) => {
-                connect_request.raw[10] = 4;
-                for (dest, src) in connect_request.raw[11..].iter_mut().zip(addr.octets()) {
-                    *dest = src;
-                }
-            }
-            IpAddr::V6(addr) => {
-                connect_request.raw[10] = 6;
-                for (dest, src) in connect_request.raw[11..].iter_mut().zip(addr.octets()) {
-                    *dest = src;
-                }
-            }
-        }
+        sockaddr_to_buf(duration, &addr, &mut connect_request.raw);
 
         let buf = unsafe {
             xous::MemoryRange::new(
@@ -125,8 +126,8 @@ impl TcpStream {
                 local_port,
                 remote_port,
                 peer_addr: *addr,
-                read_timeout: Cell::new(0),
-                write_timeout: Cell::new(0),
+                read_timeout: Arc::new(AtomicU32::new(0)),
+                write_timeout: Arc::new(AtomicU32::new(0)),
                 handle_count: Arc::new(AtomicUsize::new(1)),
             });
         }
@@ -134,26 +135,30 @@ impl TcpStream {
     }
 
     pub fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        self.read_timeout
-            .set(timeout.map(|t| t.as_millis().min(u32::MAX as u128) as u32).unwrap_or_default());
+        self.read_timeout.store(
+            timeout.map(|t| t.as_millis().min(u32::MAX as u128) as u32).unwrap_or_default(),
+            Ordering::Relaxed,
+        );
         Ok(())
     }
 
     pub fn set_write_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        self.write_timeout
-            .set(timeout.map(|t| t.as_millis().min(u32::MAX as u128) as u32).unwrap_or_default());
+        self.write_timeout.store(
+            timeout.map(|t| t.as_millis().min(u32::MAX as u128) as u32).unwrap_or_default(),
+            Ordering::Relaxed,
+        );
         Ok(())
     }
 
     pub fn read_timeout(&self) -> io::Result<Option<Duration>> {
-        match self.read_timeout.get() {
+        match self.read_timeout.load(Ordering::Relaxed) {
             0 => Ok(None),
             t => Ok(Some(Duration::from_millis(t as u64))),
         }
     }
 
     pub fn write_timeout(&self) -> io::Result<Option<Duration>> {
-        match self.write_timeout.get() {
+        match self.write_timeout.load(Ordering::Relaxed) {
             0 => Ok(None),
             t => Ok(Some(Duration::from_millis(t as u64))),
         }
@@ -205,7 +210,7 @@ impl TcpStream {
                 33 | (self.fd << 16), /* StdTcpRx */
                 range,
                 // Reuse the `offset` as the read timeout
-                xous::MemoryAddress::new(self.read_timeout.get() as usize),
+                xous::MemoryAddress::new(self.read_timeout.load(Ordering::Relaxed) as usize),
                 xous::MemorySize::new(data_to_read),
             ),
         ) {
@@ -258,7 +263,7 @@ impl TcpStream {
                 31 | (self.fd << 16), /* StdTcpTx */
                 range,
                 // Reuse the offset as the timeout
-                xous::MemoryAddress::new(self.write_timeout.get() as usize),
+                xous::MemoryAddress::new(self.write_timeout.load(Ordering::Relaxed) as usize),
                 xous::MemorySize::new(buf.len().min(send_request.raw.len())),
             ),
         )
