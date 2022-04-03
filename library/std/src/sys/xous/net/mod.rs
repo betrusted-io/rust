@@ -32,6 +32,7 @@ enum NetError {
     LibraryError = 6,
     // AlreadyUsed = 7,
     TimedOut = 8,
+    WouldBlock = 9,
 }
 
 #[repr(C, align(4096))]
