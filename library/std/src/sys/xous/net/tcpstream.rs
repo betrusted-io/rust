@@ -6,6 +6,7 @@ use crate::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, SocketAddrV4, SocketAdd
 use crate::sync::Arc;
 use crate::time::Duration;
 use core::sync::atomic::{AtomicUsize, Ordering};
+use super::*;
 
 macro_rules! unimpl {
     () => {
@@ -27,26 +28,6 @@ pub struct TcpStream {
     // milliseconds
     write_timeout: Cell<u32>,
     handle_count: Arc<AtomicUsize>,
-}
-
-#[repr(C, align(4096))]
-struct ConnectRequest {
-    raw: [u8; 4096],
-}
-
-#[repr(C, align(4096))]
-struct SendData {
-    raw: [u8; 4096],
-}
-
-#[repr(C, align(4096))]
-pub struct ReceiveData {
-    raw: [u8; 4096],
-}
-
-#[repr(C, align(4096))]
-pub struct GetAddress {
-    raw: [u8; 4096],
 }
 
 impl TcpStream {
@@ -447,7 +428,7 @@ impl fmt::Debug for TcpStream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Network connection to {:?} port {} to local port {}",
+            "TCP connection to {:?} port {} to local port {}",
             self.peer_addr, self.remote_port, self.local_port
         )
     }
