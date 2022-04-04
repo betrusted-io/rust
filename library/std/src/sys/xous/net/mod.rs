@@ -1,7 +1,6 @@
 use crate::sys::unsupported;
 use crate::io;
-use crate::time::Duration;
-use crate::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+use crate::net::SocketAddr;
 use crate::fmt;
 
 mod dns;
