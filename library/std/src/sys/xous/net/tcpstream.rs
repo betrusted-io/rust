@@ -85,11 +85,15 @@ impl TcpStream {
             // for an error.
             let response = buf.as_slice::<u16>();
             if response[0] != 0 || valid.is_none() {
-                // TODO: generate the correct error here
-                return Err(io::Error::new_const(
-                    io::ErrorKind::InvalidInput,
-                    &"Unable to connect",
-                ));
+                // errcode is a u8 but stuck in a u16 where the upper byte is invalid. Mask & decode accordingly.
+                let errcode = (response[4] & 0xff) as u8;
+                if errcode == NetError::SocketInUse as u8 {
+                    return Err(io::Error::new_const(io::ErrorKind::ResourceBusy, &"Socket in use"));
+                } else if errcode == NetError::Unaddressable as u8 {
+                    return Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Invalid address"));
+                } else {
+                    return Err(io::Error::new_const(io::ErrorKind::Other, &"Unable to connect or internal error"));
+                }
             }
             let fd = response[1] as usize;
             let local_port = response[2];
@@ -325,8 +329,9 @@ impl TcpStream {
         }
 
         xous::send_message(
-            self.fd as _,
-            xous::Message::new_blocking_scalar(34 | ((self.fd as usize) << 16), 0, 0, 0, 0),
+            services::network(),
+            xous::Message::new_blocking_scalar(34 | ((self.fd as usize) << 16), // StdTcpClose
+            0, 0, 0, 0),
         )
         .or(Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unexpected return value")))
         .map(|_| ())
@@ -347,7 +352,7 @@ impl TcpStream {
 
     pub fn set_nodelay(&self, enabled: bool) -> io::Result<()> {
         xous::send_message(
-            self.fd as _,
+            services::network(),
             xous::Message::new_blocking_scalar(
                 39 | ((self.fd as usize) << 16), //StdSetNodelay = 39
                 if enabled { 1 } else { 0 },
@@ -362,7 +367,7 @@ impl TcpStream {
 
     pub fn nodelay(&self) -> io::Result<bool> {
         let result = xous::send_message(
-            self.fd as _,
+            services::network(),
             xous::Message::new_blocking_scalar(
                 38 | ((self.fd as usize) << 16), //StdGetNodelay = 38
                 0,
@@ -381,7 +386,7 @@ impl TcpStream {
 
     pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
         xous::send_message(
-            self.fd as _,
+            services::network(),
             xous::Message::new_blocking_scalar(
                 37 | ((self.fd as usize) << 16), //StdSetTtl = 37
                 ttl as usize,
@@ -396,9 +401,9 @@ impl TcpStream {
 
     pub fn ttl(&self) -> io::Result<u32> {
         xous::send_message(
-            self.fd as _,
+            services::network(),
             xous::Message::new_blocking_scalar(
-                38 | ((self.fd as usize) << 16), //StdGetNodelay = 38
+                36 | ((self.fd as usize) << 16), //StdGetTtl = 36
                 0,
                 0,
                 0,
