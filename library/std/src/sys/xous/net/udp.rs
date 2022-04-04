@@ -78,10 +78,9 @@ impl UdpSocket {
         if let Ok(xous::Result::MemoryReturned(_, valid)) = response {
             // The first four bytes should be zero upon success, and will be nonzero
             // for an error.
-            let response = buf.as_slice::<u16>();
+            let response = buf.as_slice::<u8>();
             if response[0] != 0 || valid.is_none() {
-                // errcode is a u8 but stuck in a u16 where the upper byte is invalid. Mask & decode accordingly.
-                let errcode = (response[1] & 0xff) as u8;
+                let errcode = response[1];
                 if errcode == NetError::SocketInUse as u8 {
                     return Err(io::Error::new_const(io::ErrorKind::ResourceBusy, &"Socket in use"));
                 } else if errcode == NetError::Invalid as u8 {
@@ -93,11 +92,8 @@ impl UdpSocket {
                 }
             }
             let fd = response[1] as usize;
-            println!(
-                "Connected with file handle of {}\r\n",
-                fd
-           );
-           return Ok(UdpSocket {
+            // println!("Connected with file handle of {}\r\n", fd);
+            return Ok(UdpSocket {
                 fd,
                 local: *addr,
                 remote: Cell::new(None),
@@ -301,7 +297,7 @@ impl UdpSocket {
             let response = xous::try_send_message(
                 services::network(),
                 xous::Message::new_lend_mut(
-                    43, /* StdUdpTx */
+                    43 | (self.fd << 16), /* StdUdpTx */
                     buf,
                     None,
                     xous::MemorySize::new(4096),
@@ -309,11 +305,9 @@ impl UdpSocket {
             );
             match response {
                 Ok(xous::Result::MemoryReturned(_, valid)) => {
-                    // The first four bytes should be zero upon success, and will be nonzero
-                    // for an error.
-                    let response = buf.as_slice::<u16>();
+                    let response = buf.as_slice::<u8>();
                     if response[0] != 0 || valid.is_none() {
-                        let errcode = (response[1] & 0xff) as u8;
+                        let errcode = response[1];
                         if errcode == NetError::SocketInUse as u8 {
                             return Err(io::Error::new_const(io::ErrorKind::ResourceBusy, &"Socket in use"));
                         } else if errcode == NetError::Invalid as u8 {
