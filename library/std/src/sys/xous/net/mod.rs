@@ -11,7 +11,7 @@ pub use udp::*;
 
 macro_rules! unimpl {
     () => {
-        return Err(io::Error::new_const(
+        return Err(io::const_io_error!(
             io::ErrorKind::Unsupported,
             &"This function is not yet implemented",
         ));
