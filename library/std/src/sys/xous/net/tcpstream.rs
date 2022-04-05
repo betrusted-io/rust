@@ -1,16 +1,15 @@
 use super::super::services;
-use crate::cell::Cell;
+use super::*;
 use crate::fmt;
 use crate::io::{self, IoSlice, IoSliceMut};
 use crate::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, SocketAddrV4, SocketAddrV6};
 use crate::sync::Arc;
 use crate::time::Duration;
-use core::sync::atomic::{AtomicUsize, Ordering};
-use super::*;
+use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
 macro_rules! unimpl {
     () => {
-        return Err(io::Error::new_const(
+        return Err(io::const_io_error!(
             io::ErrorKind::Unsupported,
             &"This function is not yet implemented",
         ));
@@ -24,10 +23,34 @@ pub struct TcpStream {
     remote_port: u16,
     peer_addr: SocketAddr,
     // milliseconds
-    read_timeout: Cell<u32>,
+    read_timeout: Arc<AtomicU32>,
     // milliseconds
-    write_timeout: Cell<u32>,
+    write_timeout: Arc<AtomicU32>,
     handle_count: Arc<AtomicUsize>,
+}
+
+fn sockaddr_to_buf(duration: Duration, addr: &SocketAddr, buf: &mut [u8]) {
+    // Construct the request.
+    let port_bytes = addr.port().to_le_bytes();
+    buf[0] = port_bytes[0];
+    buf[1] = port_bytes[1];
+    for (dest, src) in buf[2..].iter_mut().zip((duration.as_millis() as u64).to_le_bytes()) {
+        *dest = src;
+    }
+    match addr.ip() {
+        IpAddr::V4(addr) => {
+            buf[10] = 4;
+            for (dest, src) in buf[11..].iter_mut().zip(addr.octets()) {
+                *dest = src;
+            }
+        }
+        IpAddr::V6(addr) => {
+            buf[10] = 6;
+            for (dest, src) in buf[11..].iter_mut().zip(addr.octets()) {
+                *dest = src;
+            }
+        }
+    }
 }
 
 impl TcpStream {
@@ -39,28 +62,7 @@ impl TcpStream {
         let mut connect_request = ConnectRequest { raw: [0u8; 4096] };
 
         // Construct the request.
-        let port_bytes = addr.port().to_le_bytes();
-        connect_request.raw[0] = port_bytes[0];
-        connect_request.raw[1] = port_bytes[1];
-        for (dest, src) in
-            connect_request.raw[2..].iter_mut().zip((duration.as_millis() as u64).to_le_bytes())
-        {
-            *dest = src;
-        }
-        match addr.ip() {
-            IpAddr::V4(addr) => {
-                connect_request.raw[10] = 4;
-                for (dest, src) in connect_request.raw[11..].iter_mut().zip(addr.octets()) {
-                    *dest = src;
-                }
-            }
-            IpAddr::V6(addr) => {
-                connect_request.raw[10] = 6;
-                for (dest, src) in connect_request.raw[11..].iter_mut().zip(addr.octets()) {
-                    *dest = src;
-                }
-            }
-        }
+        sockaddr_to_buf(duration, &addr, &mut connect_request.raw);
 
         let buf = unsafe {
             xous::MemoryRange::new(
@@ -88,11 +90,20 @@ impl TcpStream {
                 // errcode is a u8 but stuck in a u16 where the upper byte is invalid. Mask & decode accordingly.
                 let errcode = (response[4] & 0xff) as u8;
                 if errcode == NetError::SocketInUse as u8 {
-                    return Err(io::Error::new_const(io::ErrorKind::ResourceBusy, &"Socket in use"));
+                    return Err(io::const_io_error!(
+                        io::ErrorKind::ResourceBusy,
+                        &"Socket in use",
+                    ));
                 } else if errcode == NetError::Unaddressable as u8 {
-                    return Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Invalid address"));
+                    return Err(io::const_io_error!(
+                        io::ErrorKind::InvalidInput,
+                        &"Invalid address",
+                    ));
                 } else {
-                    return Err(io::Error::new_const(io::ErrorKind::Other, &"Unable to connect or internal error"));
+                    return Err(io::const_io_error!(
+                        io::ErrorKind::Other,
+                        &"Unable to connect or internal error",
+                    ));
                 }
             }
             let fd = response[1] as usize;
@@ -107,35 +118,39 @@ impl TcpStream {
                 local_port,
                 remote_port,
                 peer_addr: *addr,
-                read_timeout: Cell::new(0),
-                write_timeout: Cell::new(0),
+                read_timeout: Arc::new(AtomicU32::new(0)),
+                write_timeout: Arc::new(AtomicU32::new(0)),
                 handle_count: Arc::new(AtomicUsize::new(1)),
             });
         }
-        Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Invalid response"))
+        Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Invalid response"))
     }
 
     pub fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        self.read_timeout
-            .set(timeout.map(|t| t.as_millis().min(u32::MAX as u128) as u32).unwrap_or_default());
+        self.read_timeout.store(
+            timeout.map(|t| t.as_millis().min(u32::MAX as u128) as u32).unwrap_or_default(),
+            Ordering::Relaxed,
+        );
         Ok(())
     }
 
     pub fn set_write_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        self.write_timeout
-            .set(timeout.map(|t| t.as_millis().min(u32::MAX as u128) as u32).unwrap_or_default());
+        self.write_timeout.store(
+            timeout.map(|t| t.as_millis().min(u32::MAX as u128) as u32).unwrap_or_default(),
+            Ordering::Relaxed,
+        );
         Ok(())
     }
 
     pub fn read_timeout(&self) -> io::Result<Option<Duration>> {
-        match self.read_timeout.get() {
+        match self.read_timeout.load(Ordering::Relaxed) {
             0 => Ok(None),
             t => Ok(Some(Duration::from_millis(t as u64))),
         }
     }
 
     pub fn write_timeout(&self) -> io::Result<Option<Duration>> {
-        match self.write_timeout.get() {
+        match self.write_timeout.load(Ordering::Relaxed) {
             0 => Ok(None),
             t => Ok(Some(Duration::from_millis(t as u64))),
         }
@@ -169,7 +184,7 @@ impl TcpStream {
                 Ok(0)
             }
         } else {
-            Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unable to peek"))
+            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unable to peek"))
         }
     }
 
@@ -187,7 +202,7 @@ impl TcpStream {
                 33 | (self.fd << 16), /* StdTcpRx */
                 range,
                 // Reuse the `offset` as the read timeout
-                xous::MemoryAddress::new(self.read_timeout.get() as usize),
+                xous::MemoryAddress::new(self.read_timeout.load(Ordering::Relaxed) as usize),
                 xous::MemorySize::new(data_to_read),
             ),
         ) {
@@ -200,7 +215,7 @@ impl TcpStream {
                 Ok(length)
             } else {
                 if receive_request.raw[0] != 0 {
-                    return Err(io::Error::new_const(
+                    return Err(io::const_io_error!(
                         io::ErrorKind::InvalidInput,
                         &"Unable to read",
                     ));
@@ -208,7 +223,7 @@ impl TcpStream {
                 Ok(0)
             }
         } else {
-            Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unable to read"))
+            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unable to read"))
         }
     }
 
@@ -240,23 +255,23 @@ impl TcpStream {
                 31 | (self.fd << 16), /* StdTcpTx */
                 range,
                 // Reuse the offset as the timeout
-                xous::MemoryAddress::new(self.write_timeout.get() as usize),
+                xous::MemoryAddress::new(self.write_timeout.load(Ordering::Relaxed) as usize),
                 xous::MemorySize::new(buf.len().min(send_request.raw.len())),
             ),
         )
-        .or(Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Internal error")))?;
+        .or(Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Internal error")))?;
 
         if let xous::Result::MemoryReturned(_offset, _valid) = response {
             let result = range.as_slice::<u32>();
             if result[0] != 0 {
-                return Err(io::Error::new_const(
+                return Err(io::const_io_error!(
                     io::ErrorKind::InvalidInput,
                     &"Error when sending",
                 ));
             }
             Ok(result[1] as usize)
         } else {
-            Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unexpected return value"))
+            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unexpected return value"))
         }
     }
 
@@ -315,10 +330,10 @@ impl TcpStream {
                             0,
                         )))
                     }
-                    _ => Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Internal error")),
+                    _ => Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Internal error")),
                 }
             }
-            _ => Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Internal error")),
+            _ => Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Internal error")),
         }
     }
 
@@ -330,10 +345,15 @@ impl TcpStream {
 
         xous::send_message(
             services::network(),
-            xous::Message::new_blocking_scalar(34 | ((self.fd as usize) << 16), // StdTcpClose
-            0, 0, 0, 0),
+            xous::Message::new_blocking_scalar(
+                34 | ((self.fd as usize) << 16), // StdTcpClose
+                0,
+                0,
+                0,
+                0,
+            ),
         )
-        .or(Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unexpected return value")))
+        .or(Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unexpected return value")))
         .map(|_| ())
     }
 
@@ -361,7 +381,7 @@ impl TcpStream {
                 0,
             ),
         )
-        .or(Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unexpected return value")))
+        .or(Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unexpected return value")))
         .map(|_| ())
     }
 
@@ -376,11 +396,11 @@ impl TcpStream {
                 0,
             ),
         )
-        .or(Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unexpected return value")))?;
+        .or(Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unexpected return value")))?;
         if let xous::Result::Scalar1(enabled) = result {
             Ok(enabled != 0)
         } else {
-            Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unexpected return value"))
+            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unexpected return value"))
         }
     }
 
@@ -395,7 +415,7 @@ impl TcpStream {
                 0,
             ),
         )
-        .or(Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unexpected return value")))
+        .or(Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unexpected return value")))
         .map(|_| ())
     }
 
@@ -410,12 +430,12 @@ impl TcpStream {
                 0,
             ),
         )
-        .or(Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unexpected return value")))
+        .or(Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unexpected return value")))
         .and_then(|res| {
             if let xous::Result::Scalar1(ttl) = res {
                 Ok(ttl as u32)
             } else {
-                Err(io::Error::new_const(io::ErrorKind::InvalidInput, &"Unexpected return value"))
+                Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unexpected return value"))
             }
         })
     }
