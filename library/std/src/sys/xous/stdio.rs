@@ -94,6 +94,12 @@ pub fn is_ebadf(_err: &io::Error) -> bool {
 #[derive(Copy, Clone)]
 pub struct PanicWriter {
     conn: CID,
+    gfx_conn: Option<CID>,
+}
+
+#[repr(C, align(4096))]
+pub struct PanicNotifier {
+    raw: [u8; 4096],
 }
 
 impl PanicWriter {
@@ -127,9 +133,37 @@ impl io::Write for PanicWriter {
             };
             try_send_message(self.conn, Message::Scalar(panic_msg)).ok();
         }
+        // serialze the text to the graphics panic handler, only if we were able
+        // to acquire a connection to it. Text length is encoded in the `valid` field,
+        // the data itself in the buffer. Typically several messages are require to
+        // fully transmit the entire panic message.
+        if let Some(conn) = self.gfx_conn {
+            let mut request = PanicNotifier { raw: [0u8; 4096] };
+            for (&s, d) in s.iter().zip(request.raw.iter_mut()) {
+                *d = s;
+            }
+            let buf = unsafe {
+                xous::MemoryRange::new(
+                    &mut request as *mut PanicNotifier as usize,
+                    core::mem::size_of::<PanicNotifier>(),
+                )
+                .unwrap()
+            };
+            try_send_message(
+                conn,
+                xous::Message::new_lend(
+                    0, // append panic text
+                    buf,
+                    None,
+                    xous::MemorySize::new(s.len())
+                ),
+            ).ok();
+        }
         Ok(s.len())
     }
 
+    // Tests show that this does not seem to be reliably called at the end of a panic
+    // print, so, we can't rely on this to e.g. trigger a graphics update.
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
@@ -141,9 +175,20 @@ thread_local! { static PANIC_WRITER: RefCell<Option<PanicWriter>> = RefCell::new
 pub fn panic_output() -> Option<impl io::Write> {
     PANIC_WRITER.with(|pwr| {
         if pwr.borrow().is_none() {
+            // Generally this won't fail because every server has already allocated this connection.
             let connection =
                 xous::connect(SID::from_bytes(b"xous-log-server ").unwrap()).unwrap();
-            let pw = PanicWriter { conn: connection };
+
+            // This is possibly fallible in the case that the connection table is full,
+            // and we can't make the connection to the graphics server. Most servers do not already
+            // have this connection.
+            let gfx_conn =
+                xous::connect(SID::from_bytes(b"panic-to-screen!").unwrap()).ok();
+
+            let pw = PanicWriter {
+                conn: connection,
+                gfx_conn,
+            };
 
             // Send the "We're panicking" message (1000).
             try_send_message(connection, Message::new_scalar(1000, 0, 0, 0, 0)).ok();
