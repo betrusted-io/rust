@@ -152,7 +152,7 @@ impl io::Write for PanicWriter {
             try_send_message(
                 conn,
                 xous::Message::new_lend(
-                    0, // text
+                    0, // append panic text
                     buf,
                     None,
                     xous::MemorySize::new(s.len())
@@ -162,6 +162,8 @@ impl io::Write for PanicWriter {
         Ok(s.len())
     }
 
+    // Tests show that this does not seem to be reliably called at the end of a panic
+    // print, so, we can't rely on this to e.g. trigger a graphics update.
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
@@ -173,13 +175,15 @@ thread_local! { static PANIC_WRITER: RefCell<Option<PanicWriter>> = RefCell::new
 pub fn panic_output() -> Option<impl io::Write> {
     PANIC_WRITER.with(|pwr| {
         if pwr.borrow().is_none() {
+            // Generally this won't fail because every server has already allocated this connection.
             let connection =
                 xous::connect(SID::from_bytes(b"xous-log-server ").unwrap()).unwrap();
 
             // This is possibly fallible in the case that the connection table is full,
-            // and we can't make the connection to the graphics server.
+            // and we can't make the connection to the graphics server. Most servers do not already
+            // have this connection.
             let gfx_conn =
-            xous::connect(SID::from_bytes(b"panic-to-screen!").unwrap()).ok();
+                xous::connect(SID::from_bytes(b"panic-to-screen!").unwrap()).ok();
 
             let pw = PanicWriter {
                 conn: connection,
