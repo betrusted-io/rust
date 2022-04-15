@@ -54,6 +54,23 @@ fn sockaddr_to_buf(duration: Duration, addr: &SocketAddr, buf: &mut [u8]) {
 }
 
 impl TcpStream {
+    pub (crate) fn from_listener(
+        fd: usize,
+        local_port: u16,
+        remote_port: u16,
+        peer_addr: SocketAddr
+    ) -> TcpStream {
+        TcpStream {
+            fd,
+            local_port,
+            remote_port,
+            peer_addr,
+            read_timeout: Arc::new(AtomicU32::new(0)),
+            write_timeout: Arc::new(AtomicU32::new(0)),
+            handle_count: Arc::new(AtomicUsize::new(1)),
+        }
+    }
+
     pub fn connect(socketaddr: io::Result<&SocketAddr>) -> io::Result<TcpStream> {
         Self::connect_timeout(socketaddr?, Duration::ZERO)
     }
@@ -164,7 +181,7 @@ impl TcpStream {
             xous::MemoryRange::new(&mut receive_request as *mut ReceiveData as usize, 4096).unwrap()
         };
 
-        if let Ok(xous::Result::MemoryReturned(_offset, valid)) = xous::send_message(
+        if let Ok(xous::Result::MemoryReturned(offset, valid)) = xous::send_message(
             services::network(),
             xous::Message::new_lend_mut(
                 33 | (self.fd << 16), /* StdTcpRx */
@@ -174,17 +191,17 @@ impl TcpStream {
             ),
         ) {
             // println!("offset: {:?}, valid: {:?}", offset, valid);
-            if let Some(length) = valid {
-                let length = length.get();
+            if offset.is_some() {
+                let length = valid.map_or(0, |v| v.get());
                 for (dest, src) in buf.iter_mut().zip(receive_request.raw[..length].iter()) {
                     *dest = *src;
                 }
                 Ok(length)
             } else {
-                Ok(0)
+                Err(io::const_io_error!(io::ErrorKind::Other, &"peek_slice failure"))
             }
         } else {
-            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unable to peek"))
+            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Library failure: wrong message type or messaging error"))
         }
     }
 
@@ -196,7 +213,7 @@ impl TcpStream {
             xous::MemoryRange::new(&mut receive_request as *mut ReceiveData as usize, 4096).unwrap()
         };
 
-        if let Ok(xous::Result::MemoryReturned(_offset, valid)) = xous::send_message(
+        if let Ok(xous::Result::MemoryReturned(offset, valid)) = xous::send_message(
             services::network(),
             xous::Message::new_lend_mut(
                 33 | (self.fd << 16), /* StdTcpRx */
@@ -207,23 +224,17 @@ impl TcpStream {
             ),
         ) {
             // println!("offset: {:?}, valid: {:?}", offset, valid);
-            if let Some(length) = valid {
-                let length = length.get();
+            if offset.is_some() {
+                let length = valid.map_or(0, |v| v.get());
                 for (dest, src) in buf.iter_mut().zip(receive_request.raw[..length].iter()) {
                     *dest = *src;
                 }
                 Ok(length)
             } else {
-                if receive_request.raw[0] != 0 {
-                    return Err(io::const_io_error!(
-                        io::ErrorKind::InvalidInput,
-                        &"Unable to read",
-                    ));
-                }
-                Ok(0)
+                Err(io::const_io_error!(io::ErrorKind::Other, &"recv_slice failure"))
             }
         } else {
-            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unable to read"))
+            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Library failure: wrong message type or messaging error"))
         }
     }
 
@@ -337,17 +348,18 @@ impl TcpStream {
         }
     }
 
-    pub fn shutdown(&self, _: Shutdown) -> io::Result<()> {
-        // If the handle count wasn't at 1, then there's nothing to do -- don't send the shutdown message.
-        if self.handle_count.fetch_sub(1, Ordering::Relaxed) != 1 {
-            return Ok(());
-        }
+    pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
+        let shutdown_code = match how {
+            crate::net::Shutdown::Read => 1,
+            crate::net::Shutdown::Write => 2,
+            crate::net::Shutdown::Both => 3,
+        };
 
         xous::send_message(
             services::network(),
             xous::Message::new_blocking_scalar(
-                34 | ((self.fd as usize) << 16), // StdTcpClose
-                0,
+                46 | ((self.fd as usize) << 16), // StdTcpStreamShutdown
+                shutdown_code,
                 0,
                 0,
                 0,
@@ -441,7 +453,8 @@ impl TcpStream {
     }
 
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
-        unimpl!();
+        // this call doesn't have a meaning on our platform, but we can at least not panic if it's used.
+        Ok(None)
     }
 
     pub fn set_nonblocking(&self, _: bool) -> io::Result<()> {
@@ -456,5 +469,32 @@ impl fmt::Debug for TcpStream {
             "TCP connection to {:?} port {} to local port {}",
             self.peer_addr, self.remote_port, self.local_port
         )
+    }
+}
+
+impl Drop for TcpStream {
+    fn drop(&mut self) {
+        if self.handle_count.fetch_sub(1, Ordering::Relaxed) == 1 {
+            // only drop if we're the last clone
+            match xous::send_message(
+                services::network(),
+                xous::Message::new_blocking_scalar(
+                    34 | ((self.fd as usize) << 16), // StdTcpClose
+                    0,
+                    0,
+                    0,
+                    0,
+                ),
+            ) {
+                Ok(xous::Result::Scalar1(result)) => {
+                    if result != 0 {
+                        println!("TcpStream drop failure err code {}\r\n", result);
+                    }
+                }
+                _ => {
+                    println!("TcpStream drop failure - internal error\r\n");
+                }
+            }
+        }
     }
 }
