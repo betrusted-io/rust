@@ -1,5 +1,5 @@
 use crate::sync::atomic::{AtomicUsize, Ordering::SeqCst};
-use crate::sys::mutex::Mutex;
+use super::mutex::Mutex;
 use crate::sys::services::ticktimer;
 use crate::time::Duration;
 
