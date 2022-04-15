@@ -54,6 +54,22 @@ fn sockaddr_to_buf(duration: Duration, addr: &SocketAddr, buf: &mut [u8]) {
 }
 
 impl TcpStream {
+    pub (crate) fn from_listener(
+        fd: usize,
+        local_port: u16,
+        remote_port: u16,
+        peer_addr: SocketAddr
+    ) -> TcpStream {
+        TcpStream {
+            fd,
+            local_port,
+            remote_port,
+            peer_addr,
+            read_timeout: Arc::new(AtomicU32::new(0)),
+            write_timeout: Arc::new(AtomicU32::new(0)),
+            handle_count: Arc::new(AtomicUsize::new(1)),
+        }
+    }
     pub fn connect(socketaddr: io::Result<&SocketAddr>) -> io::Result<TcpStream> {
         Self::connect_timeout(socketaddr?, Duration::ZERO)
     }
@@ -441,7 +457,8 @@ impl TcpStream {
     }
 
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
-        unimpl!();
+        // this call doesn't have a meaning on our platform, but we can at least not panic if it's used.
+        Ok(None)
     }
 
     pub fn set_nonblocking(&self, _: bool) -> io::Result<()> {
