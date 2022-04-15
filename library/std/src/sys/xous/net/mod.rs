@@ -1,22 +1,10 @@
-use crate::sys::unsupported;
-use crate::io;
-use crate::net::SocketAddr;
-use crate::fmt;
-
 mod dns;
 mod tcpstream;
 pub use tcpstream::*;
+mod tcplistener;
+pub use tcplistener::*;
 mod udp;
 pub use udp::*;
-
-macro_rules! unimpl {
-    () => {
-        return Err(io::const_io_error!(
-            io::ErrorKind::Unsupported,
-            &"This function is not yet implemented",
-        ));
-    };
-}
 
 // this structure needs to be synchronized with what's in net/src/api.rs
 #[repr(C)]
@@ -52,56 +40,6 @@ pub struct ReceiveData {
 #[repr(C, align(4096))]
 pub struct GetAddress {
     raw: [u8; 4096],
-}
-
-pub struct TcpListener(!);
-
-impl TcpListener {
-    pub fn bind(_: io::Result<&SocketAddr>) -> io::Result<TcpListener> {
-        unsupported()
-    }
-
-    pub fn socket_addr(&self) -> io::Result<SocketAddr> {
-        self.0
-    }
-
-    pub fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
-        self.0
-    }
-
-    pub fn duplicate(&self) -> io::Result<TcpListener> {
-        self.0
-    }
-
-    pub fn set_ttl(&self, _: u32) -> io::Result<()> {
-        unimpl!();
-    }
-
-    pub fn ttl(&self) -> io::Result<u32> {
-        unimpl!();
-    }
-
-    pub fn set_only_v6(&self, _: bool) -> io::Result<()> {
-        unimpl!();
-    }
-
-    pub fn only_v6(&self) -> io::Result<bool> {
-        unimpl!();
-    }
-
-    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
-        unimpl!();
-    }
-
-    pub fn set_nonblocking(&self, _: bool) -> io::Result<()> {
-        unimpl!();
-    }
-}
-
-impl fmt::Debug for TcpListener {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0
-    }
 }
 
 pub use dns::LookupHost;
