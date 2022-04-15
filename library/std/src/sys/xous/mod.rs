@@ -3,13 +3,12 @@
 pub mod alloc;
 pub mod args;
 pub mod cmath;
-pub mod condvar;
 pub mod env;
 #[path = "../unsupported/fs.rs"]
 pub mod fs;
 #[path = "../unsupported/io.rs"]
 pub mod io;
-pub mod mutex;
+pub mod locks;
 pub mod net;
 pub mod os;
 #[path = "../unix/os_str.rs"]
@@ -19,7 +18,6 @@ pub mod path;
 pub mod pipe;
 #[path = "../unsupported/process.rs"]
 pub mod process;
-pub mod rwlock;
 pub mod stdio;
 pub mod services;
 pub mod thread;
