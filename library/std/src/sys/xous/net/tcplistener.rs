@@ -106,7 +106,7 @@ impl TcpListener {
                 }
             }
             let fd = response[1] as usize;
-            println!("TcpListening with file handle of {}\r\n", fd);
+            // println!("TcpListening with file handle of {}\r\n", fd);
             return Ok(fd);
         }
         Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Invalid response"))
