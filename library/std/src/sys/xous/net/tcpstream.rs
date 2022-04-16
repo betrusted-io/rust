@@ -70,6 +70,7 @@ impl TcpStream {
             handle_count: Arc::new(AtomicUsize::new(1)),
         }
     }
+
     pub fn connect(socketaddr: io::Result<&SocketAddr>) -> io::Result<TcpStream> {
         Self::connect_timeout(socketaddr?, Duration::ZERO)
     }
@@ -192,10 +193,14 @@ impl TcpStream {
             // println!("offset: {:?}, valid: {:?}", offset, valid);
             if let Some(length) = valid {
                 let length = length.get();
-                for (dest, src) in buf.iter_mut().zip(receive_request.raw[..length].iter()) {
-                    *dest = *src;
+                if length == u32::MAX as usize {
+                    Ok(0)
+                } else {
+                    for (dest, src) in buf.iter_mut().zip(receive_request.raw[..length].iter()) {
+                        *dest = *src;
+                    }
+                    Ok(length)
                 }
-                Ok(length)
             } else {
                 Ok(0)
             }
@@ -225,10 +230,15 @@ impl TcpStream {
             // println!("offset: {:?}, valid: {:?}", offset, valid);
             if let Some(length) = valid {
                 let length = length.get();
-                for (dest, src) in buf.iter_mut().zip(receive_request.raw[..length].iter()) {
-                    *dest = *src;
+                // handle the case of a zero-length read, which gets mapped to u32::MAX
+                if length == u32::MAX as usize {
+                    Ok(0)
+                } else {
+                    for (dest, src) in buf.iter_mut().zip(receive_request.raw[..length].iter()) {
+                        *dest = *src;
+                    }
+                    Ok(length)
                 }
-                Ok(length)
             } else {
                 if receive_request.raw[0] != 0 {
                     return Err(io::const_io_error!(
@@ -353,17 +363,18 @@ impl TcpStream {
         }
     }
 
-    pub fn shutdown(&self, _: Shutdown) -> io::Result<()> {
-        // If the handle count wasn't at 1, then there's nothing to do -- don't send the shutdown message.
-        if self.handle_count.fetch_sub(1, Ordering::Relaxed) != 1 {
-            return Ok(());
-        }
+    pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
+        let shutdown_code = match how {
+            crate::net::Shutdown::Read => 1,
+            crate::net::Shutdown::Write => 2,
+            crate::net::Shutdown::Both => 3,
+        };
 
         xous::send_message(
             services::network(),
             xous::Message::new_blocking_scalar(
-                34 | ((self.fd as usize) << 16), // StdTcpClose
-                0,
+                46 | ((self.fd as usize) << 16), // StdTcpStreamShutdown
+                shutdown_code,
                 0,
                 0,
                 0,
@@ -473,5 +484,32 @@ impl fmt::Debug for TcpStream {
             "TCP connection to {:?} port {} to local port {}",
             self.peer_addr, self.remote_port, self.local_port
         )
+    }
+}
+
+impl Drop for TcpStream {
+    fn drop(&mut self) {
+        if self.handle_count.fetch_sub(1, Ordering::Relaxed) == 1 {
+            // only drop if we're the last clone
+            match xous::send_message(
+                services::network(),
+                xous::Message::new_blocking_scalar(
+                    34 | ((self.fd as usize) << 16), // StdTcpClose
+                    0,
+                    0,
+                    0,
+                    0,
+                ),
+            ) {
+                Ok(xous::Result::Scalar1(result)) => {
+                    if result != 0 {
+                        println!("TcpStream drop failure err code {}\r\n", result);
+                    }
+                }
+                _ => {
+                    println!("TcpStream drop failure - internal error\r\n");
+                }
+            }
+        }
     }
 }
