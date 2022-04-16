@@ -19,7 +19,7 @@ macro_rules! unimpl {
 
 #[derive(Clone)]
 pub struct TcpListener {
-    fd: usize,
+    fd: Cell<usize>,
     local: SocketAddr,
     handle_count: Arc<AtomicUsize>,
     nonblocking: Cell<bool>,
@@ -28,6 +28,20 @@ pub struct TcpListener {
 impl TcpListener {
     pub fn bind(socketaddr: io::Result<&SocketAddr>) -> io::Result<TcpListener> {
         let addr = socketaddr?;
+
+        let fd = TcpListener::bind_inner(addr)?;
+        return Ok(TcpListener {
+            fd: Cell::new(fd),
+            local: *addr,
+            handle_count: Arc::new(AtomicUsize::new(1)),
+            nonblocking: Cell::new(false),
+        });
+    }
+
+    /// This returns the raw fd of a Listener, so that it can also be used by the
+    /// accept routine to replenish the Listener object after its handle has been converted into
+    /// a TcpStream object.
+    fn bind_inner(addr: &SocketAddr) -> io::Result<usize> {
         // Construct the request
         let mut connect_request = ConnectRequest { raw: [0u8; 4096] };
 
@@ -93,12 +107,7 @@ impl TcpListener {
             }
             let fd = response[1] as usize;
             println!("TcpListening with file handle of {}\r\n", fd);
-            return Ok(TcpListener {
-                fd,
-                local: *addr,
-                handle_count: Arc::new(AtomicUsize::new(1)),
-                nonblocking: Cell::new(false),
-            });
+            return Ok(fd);
         }
         Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Invalid response"))
     }
@@ -124,7 +133,7 @@ impl TcpListener {
         if let Ok(xous::Result::MemoryReturned(_offset, _valid)) = xous::send_message(
             services::network(),
             xous::Message::new_lend_mut(
-                45 | (self.fd << 16), /* StdTcpAccept */
+                45 | (self.fd.get() << 16), /* StdTcpAccept */
                 range,
                 None,
                 None,
@@ -147,7 +156,7 @@ impl TcpListener {
             } else {
                 // accept successful
                 let rr = &receive_request.raw;
-                let fd = u16::from_le_bytes(rr[1..3].try_into().unwrap());
+                let stream_fd = u16::from_le_bytes(rr[1..3].try_into().unwrap());
                 let port = u16::from_le_bytes(rr[20..22].try_into().unwrap());
                 let addr = if rr[3] == 4 {
                     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(rr[4], rr[5], rr[6], rr[7])), port)
@@ -168,9 +177,15 @@ impl TcpListener {
                 } else {
                     return Err(io::const_io_error!(io::ErrorKind::Other, &"library error",));
                 };
+
+                // replenish the listener
+                let new_fd = TcpListener::bind_inner(&self.local)?;
+                self.fd.set(new_fd);
+
+                // now return a stream converted from the old stream's fd
                 Ok((
                     TcpStream::from_listener(
-                        fd as usize,
+                        stream_fd as usize,
                         self.local.port(),
                         port,
                         addr,
@@ -192,7 +207,7 @@ impl TcpListener {
         xous::send_message(
             services::network(),
             xous::Message::new_blocking_scalar(
-                37 | ((self.fd as usize) << 16), //StdSetTtl = 37
+                37 | ((self.fd.get() as usize) << 16), //StdSetTtl = 37
                 ttl as usize,
                 0,
                 0,
@@ -207,7 +222,7 @@ impl TcpListener {
         xous::send_message(
             services::network(),
             xous::Message::new_blocking_scalar(
-                36 | ((self.fd as usize) << 16), //StdGetTtl = 36
+                36 | ((self.fd.get() as usize) << 16), //StdGetTtl = 36
                 0,
                 0,
                 0,
@@ -256,7 +271,7 @@ impl Drop for TcpListener {
             match xous::send_message(
                 services::network(),
                 xous::Message::new_blocking_scalar(
-                    46 | ((self.fd as usize) << 16), // StdTcpListenerClose
+                    34 | ((self.fd.get() as usize) << 16), // StdTcpClose - re-using an implementation
                     0,
                     0,
                     0,
