@@ -1,11 +1,10 @@
 use super::super::services;
 use super::*;
 use crate::fmt;
-use crate::cell::Cell;
 use crate::io;
 use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use crate::sync::Arc;
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use core::convert::TryInto;
 
 macro_rules! unimpl {
@@ -19,10 +18,10 @@ macro_rules! unimpl {
 
 #[derive(Clone)]
 pub struct TcpListener {
-    fd: Cell<usize>,
+    fd: Arc<AtomicUsize>,
     local: SocketAddr,
     handle_count: Arc<AtomicUsize>,
-    nonblocking: Cell<bool>,
+    nonblocking: Arc<AtomicBool>,
 }
 
 impl TcpListener {
@@ -31,10 +30,10 @@ impl TcpListener {
 
         let fd = TcpListener::bind_inner(addr)?;
         return Ok(TcpListener {
-            fd: Cell::new(fd),
+            fd: Arc::new(AtomicUsize::new(fd)),
             local: *addr,
             handle_count: Arc::new(AtomicUsize::new(1)),
-            nonblocking: Cell::new(false),
+            nonblocking: Arc::new(AtomicBool::new(false)),
         });
     }
 
@@ -122,7 +121,7 @@ impl TcpListener {
         let range = unsafe {
             xous::MemoryRange::new(&mut receive_request as *mut ReceiveData as usize, 4096).unwrap()
         };
-        if self.nonblocking.get() {
+        if self.nonblocking.load(Ordering::Relaxed) {
             // nonblocking
             receive_request.raw[0] = 0;
         } else {
@@ -133,7 +132,7 @@ impl TcpListener {
         if let Ok(xous::Result::MemoryReturned(_offset, _valid)) = xous::send_message(
             services::network(),
             xous::Message::new_lend_mut(
-                45 | (self.fd.get() << 16), /* StdTcpAccept */
+                45 | (self.fd.load(Ordering::Relaxed) << 16), /* StdTcpAccept */
                 range,
                 None,
                 None,
@@ -180,7 +179,7 @@ impl TcpListener {
 
                 // replenish the listener
                 let new_fd = TcpListener::bind_inner(&self.local)?;
-                self.fd.set(new_fd);
+                self.fd.store(new_fd, Ordering::Relaxed);
 
                 // now return a stream converted from the old stream's fd
                 Ok((
@@ -207,7 +206,7 @@ impl TcpListener {
         xous::send_message(
             services::network(),
             xous::Message::new_blocking_scalar(
-                37 | ((self.fd.get() as usize) << 16), //StdSetTtl = 37
+                37 | ((self.fd.load(Ordering::Relaxed) as usize) << 16), //StdSetTtl = 37
                 ttl as usize,
                 0,
                 0,
@@ -222,7 +221,7 @@ impl TcpListener {
         xous::send_message(
             services::network(),
             xous::Message::new_blocking_scalar(
-                36 | ((self.fd.get() as usize) << 16), //StdGetTtl = 36
+                36 | ((self.fd.load(Ordering::Relaxed) as usize) << 16), //StdGetTtl = 36
                 0,
                 0,
                 0,
@@ -253,7 +252,7 @@ impl TcpListener {
     }
 
     pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
-        self.nonblocking.set(nonblocking);
+        self.nonblocking.store(nonblocking, Ordering::Relaxed);
         Ok(())
     }
 }
@@ -271,7 +270,7 @@ impl Drop for TcpListener {
             match xous::send_message(
                 services::network(),
                 xous::Message::new_blocking_scalar(
-                    34 | ((self.fd.get() as usize) << 16), // StdTcpClose - re-using an implementation
+                    34 | ((self.fd.load(Ordering::Relaxed) as usize) << 16), // StdTcpClose - re-using an implementation
                     0,
                     0,
                     0,
