@@ -181,7 +181,7 @@ impl TcpStream {
             xous::MemoryRange::new(&mut receive_request as *mut ReceiveData as usize, 4096).unwrap()
         };
 
-        if let Ok(xous::Result::MemoryReturned(_offset, valid)) = xous::send_message(
+        if let Ok(xous::Result::MemoryReturned(offset, valid)) = xous::send_message(
             services::network(),
             xous::Message::new_lend_mut(
                 33 | (self.fd << 16), /* StdTcpRx */
@@ -191,21 +191,17 @@ impl TcpStream {
             ),
         ) {
             // println!("offset: {:?}, valid: {:?}", offset, valid);
-            if let Some(length) = valid {
-                let length = length.get();
-                if length == u32::MAX as usize {
-                    Ok(0)
-                } else {
-                    for (dest, src) in buf.iter_mut().zip(receive_request.raw[..length].iter()) {
-                        *dest = *src;
-                    }
-                    Ok(length)
+            if offset.is_some() {
+                let length = valid.map_or(0, |v| v.get());
+                for (dest, src) in buf.iter_mut().zip(receive_request.raw[..length].iter()) {
+                    *dest = *src;
                 }
+                Ok(length)
             } else {
-                Ok(0)
+                Err(io::const_io_error!(io::ErrorKind::Other, &"peek_slice failure"))
             }
         } else {
-            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unable to peek"))
+            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Library failure: wrong message type or messaging error"))
         }
     }
 
@@ -217,7 +213,7 @@ impl TcpStream {
             xous::MemoryRange::new(&mut receive_request as *mut ReceiveData as usize, 4096).unwrap()
         };
 
-        if let Ok(xous::Result::MemoryReturned(_offset, valid)) = xous::send_message(
+        if let Ok(xous::Result::MemoryReturned(offset, valid)) = xous::send_message(
             services::network(),
             xous::Message::new_lend_mut(
                 33 | (self.fd << 16), /* StdTcpRx */
@@ -228,28 +224,17 @@ impl TcpStream {
             ),
         ) {
             // println!("offset: {:?}, valid: {:?}", offset, valid);
-            if let Some(length) = valid {
-                let length = length.get();
-                // handle the case of a zero-length read, which gets mapped to u32::MAX
-                if length == u32::MAX as usize {
-                    Ok(0)
-                } else {
-                    for (dest, src) in buf.iter_mut().zip(receive_request.raw[..length].iter()) {
-                        *dest = *src;
-                    }
-                    Ok(length)
+            if offset.is_some() {
+                let length = valid.map_or(0, |v| v.get());
+                for (dest, src) in buf.iter_mut().zip(receive_request.raw[..length].iter()) {
+                    *dest = *src;
                 }
+                Ok(length)
             } else {
-                if receive_request.raw[0] != 0 {
-                    return Err(io::const_io_error!(
-                        io::ErrorKind::InvalidInput,
-                        &"Unable to read",
-                    ));
-                }
-                Ok(0)
+                Err(io::const_io_error!(io::ErrorKind::Other, &"recv_slice failure"))
             }
         } else {
-            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Unable to read"))
+            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Library failure: wrong message type or messaging error"))
         }
     }
 
