@@ -62,10 +62,12 @@ unsafe impl Allocator for System {
 
 #[cfg(feature = "global")]
 pub fn acquire_global_lock() {
-    // single threaded, no need!
+    // global feature should not be enabled
+    unimplemented!()
 }
 
 #[cfg(feature = "global")]
 pub fn release_global_lock() {
-    // single threaded, no need!
+    // global feature should not be enabled
+    unimplemented!()
 }
