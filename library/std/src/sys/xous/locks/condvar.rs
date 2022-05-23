@@ -1,13 +1,16 @@
-use crate::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use super::mutex::Mutex;
+use crate::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use crate::sys::services::ticktimer;
 use crate::time::Duration;
+
+static CONDVAR_INDEX: AtomicUsize = AtomicUsize::new(1);
 
 // The implementation is inspired by Andrew D. Birrell's paper
 // "Implementing Condition Variables with Semaphores"
 
 pub struct Condvar {
     counter: AtomicUsize,
+    index: AtomicUsize,
 }
 
 pub type MovableCondvar = Condvar;
@@ -17,10 +20,15 @@ unsafe impl Sync for Condvar {}
 
 impl Condvar {
     pub const fn new() -> Condvar {
-        Condvar { counter: AtomicUsize::new(0) }
+        Condvar {
+            counter: AtomicUsize::new(0),
+            index: AtomicUsize::new(0),
+        }
     }
 
-    pub unsafe fn init(&mut self) {}
+    pub unsafe fn init(&mut self) {
+        self.index.store(CONDVAR_INDEX.fetch_add(1, SeqCst), SeqCst);
+    }
 
     pub unsafe fn notify_one(&self) {
         if self.counter.load(SeqCst) > 0 {
@@ -29,7 +37,7 @@ impl Condvar {
                 ticktimer(),
                 xous::Message::new_scalar(
                     9, /* NotifyCondition */
-                    self.counter.as_mut_ptr() as usize,
+                    self.index.load(SeqCst),
                     1,
                     0,
                     0,
@@ -45,7 +53,7 @@ impl Condvar {
             ticktimer(),
             xous::Message::new_scalar(
                 9, /* NotifyCondition */
-                self.counter.as_mut_ptr() as usize,
+                self.index.load(SeqCst),
                 counter,
                 0,
                 0,
@@ -61,7 +69,7 @@ impl Condvar {
             ticktimer(),
             xous::Message::new_blocking_scalar(
                 8, /* WaitForCondition */
-                self.counter.as_mut_ptr() as usize,
+                self.index.load(SeqCst),
                 0,
                 0,
                 0,
@@ -79,7 +87,7 @@ impl Condvar {
             ticktimer(),
             xous::Message::new_blocking_scalar(
                 8, /* WaitForCondition */
-                self.counter.as_mut_ptr() as usize,
+                self.index.load(SeqCst),
                 millis,
                 0,
                 0,
