@@ -15,7 +15,6 @@ pub struct Stdout {
 pub struct Stderr;
 
 static mut LOG_SERVER_CONNECTION: Option<CID> = None;
-const MEM_READ_WRITE: usize = 0b0000_0010 | 0b0000_0100;
 
 impl Stdin {
     pub const fn new() -> Stdin {
@@ -43,7 +42,15 @@ impl Stdout {
             }
         }
         if self.mem.is_none() {
-            self.mem = Some(map_memory(None, None, MESSAGE_CHUNK_SIZE, MEM_READ_WRITE).unwrap());
+            self.mem = Some(
+                map_memory(
+                    None,
+                    None,
+                    MESSAGE_CHUNK_SIZE,
+                    xous::MemoryFlags::R | xous::MemoryFlags::W,
+                )
+                .unwrap(),
+            );
         }
     }
 }
@@ -155,9 +162,10 @@ impl io::Write for PanicWriter {
                     0, // append panic text
                     buf,
                     None,
-                    xous::MemorySize::new(s.len())
+                    xous::MemorySize::new(s.len()),
                 ),
-            ).ok();
+            )
+            .ok();
         }
         Ok(s.len())
     }
@@ -176,19 +184,14 @@ pub fn panic_output() -> Option<impl io::Write> {
     PANIC_WRITER.with(|pwr| {
         if pwr.borrow().is_none() {
             // Generally this won't fail because every server has already allocated this connection.
-            let connection =
-                xous::connect(SID::from_bytes(b"xous-log-server ").unwrap()).unwrap();
+            let connection = xous::connect(SID::from_bytes(b"xous-log-server ").unwrap()).unwrap();
 
             // This is possibly fallible in the case that the connection table is full,
             // and we can't make the connection to the graphics server. Most servers do not already
             // have this connection.
-            let gfx_conn =
-                xous::connect(SID::from_bytes(b"panic-to-screen!").unwrap()).ok();
+            let gfx_conn = xous::connect(SID::from_bytes(b"panic-to-screen!").unwrap()).ok();
 
-            let pw = PanicWriter {
-                conn: connection,
-                gfx_conn,
-            };
+            let pw = PanicWriter { conn: connection, gfx_conn };
 
             // Send the "We're panicking" message (1000).
             try_send_message(connection, Message::new_scalar(1000, 0, 0, 0, 0)).ok();
