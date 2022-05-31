@@ -25,7 +25,7 @@ impl Thread {
             None,
             None,
             stack_size + GUARD_PAGE_SIZE + GUARD_PAGE_SIZE,
-            0b111, /* R+W+X */
+            xous::MemoryFlags::R | xous::MemoryFlags::W | xous::MemoryFlags::X,
         )
         .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
@@ -35,7 +35,7 @@ impl Thread {
             xous::MemoryRange::new(stack_plus_guard_pages.as_mut_ptr() as usize, GUARD_PAGE_SIZE)
                 .map_err(|code| io::Error::from_raw_os_error(code as i32))
         }?;
-        xous::update_memory_flags(guard_page_pre, 0b100 /* W */)
+        xous::update_memory_flags(guard_page_pre, xous::MemoryFlags::W)
             .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
         // Stack sandwiched between guard pages
@@ -56,7 +56,7 @@ impl Thread {
             )
             .map_err(|code| io::Error::from_raw_os_error(code as i32))
         }?;
-        xous::update_memory_flags(guard_page_post, 0b100 /* W */)
+        xous::update_memory_flags(guard_page_post, xous::MemoryFlags::W)
             .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
         // Ensure that the pages are laid out like we expect them.
