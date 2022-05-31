@@ -25,7 +25,8 @@ unsafe impl Allocator for System {
             size + (4096 - (size & 4095))
         };
 
-        let syscall = xous::SysCall::IncreaseHeap(size, 0b110);
+        let syscall =
+            xous::SysCall::IncreaseHeap(size, xous::MemoryFlags::R | xous::MemoryFlags::W);
         if let Ok(xous::Result::MemoryRange(mem)) = xous::rsyscall(syscall) {
             let start = mem.as_ptr() as usize - size + mem.len();
             (start as *mut u8, size, 0)

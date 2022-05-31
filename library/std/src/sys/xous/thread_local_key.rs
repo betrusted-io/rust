@@ -46,7 +46,7 @@ fn tls_ptr() -> *mut usize {
             None,
             None,
             xous::MemorySize::new(TLS_MEMORY_SIZE).unwrap(),
-            0b110,
+            xous::MemoryFlags::R | xous::MemoryFlags::W,
         );
         if let Ok(xous::Result::MemoryRange(mem)) = xous::rsyscall(syscall) {
             tp = mem.as_ptr() as usize;
