@@ -84,7 +84,8 @@ rustc --version | awk '{print $2}' > "$dest_path/RUST_VERSION"
 # Remove stale objects
 rm -f $dest_lib_path/*.rlib
 
-previous_libraries=$(ls -1 $src_path/*.rlib)
+# TODO: Use below to remove duplicates
+# previous_libraries=$(ls -1 $src_path/*.rlib)
 
 cargo build \
     --target riscv32imac-unknown-xous-elf \
