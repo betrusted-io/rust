@@ -32,7 +32,7 @@ export RUSTFLAGS="-Cforce-unwind-tables=yes -Cembed-bitcode=yes"
 export __CARGO_DEFAULT_LIB_METADATA="stablestd"
 
 command_exists() {
-    which $1 > /dev/null && $1 --version 2>&1 > /dev/null
+    which $1 &> /dev/null && $1 --version 2>&1 > /dev/null
 }
 
 # Set up the C compiler. We need to explicitly specify these variables
