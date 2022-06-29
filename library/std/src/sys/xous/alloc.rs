@@ -1,6 +1,6 @@
 use crate::alloc::{GlobalAlloc, Layout, System};
 
-static mut DLMALLOC: dlmalloc_xous::Dlmalloc = dlmalloc_xous::Dlmalloc::new();
+static mut DLMALLOC: dlmalloc::Dlmalloc = dlmalloc::Dlmalloc::new();
 
 #[stable(feature = "alloc_system_type", since = "1.28.0")]
 unsafe impl GlobalAlloc for System {
