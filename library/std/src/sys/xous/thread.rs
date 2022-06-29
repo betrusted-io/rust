@@ -164,7 +164,3 @@ pub mod guard {
         None
     }
 }
-
-pub fn my_id() -> u32 {
-    xous::current_tid().map(|tid| tid as u32).unwrap_or_default()
-}
