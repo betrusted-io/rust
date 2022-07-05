@@ -145,6 +145,8 @@ pub mod solaris;
 pub mod solid;
 #[cfg(target_os = "vxworks")]
 pub mod vxworks;
+#[cfg(target_os = "xous")]
+pub mod xous;
 
 #[cfg(any(unix, target_os = "wasi", doc))]
 mod fd;
