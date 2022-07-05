@@ -189,7 +189,7 @@ pub fn panic_output() -> Option<impl io::Write> {
             // This is possibly fallible in the case that the connection table is full,
             // and we can't make the connection to the graphics server. Most servers do not already
             // have this connection.
-            let gfx_conn = xous::connect(SID::from_bytes(b"panic-to-screen!").unwrap()).ok();
+            let gfx_conn = xous::try_connect(SID::from_bytes(b"panic-to-screen!").unwrap()).ok();
 
             let pw = PanicWriter { conn: connection, gfx_conn };
 
