@@ -1,80 +1,73 @@
-use crate::env;
 use crate::ffi::OsStr;
 use crate::io;
-use crate::mem;
 use crate::path::{Path, PathBuf, Prefix};
-
-/// # Safety
-///
-/// `bytes` must be a valid wtf8 encoded slice
-#[inline]
-unsafe fn bytes_as_os_str(bytes: &[u8]) -> &OsStr {
-    // &OsStr is layout compatible with &Slice, which is compatible with &Wtf8,
-    // which is compatible with &[u8].
-    unsafe { mem::transmute(bytes) }
-}
 
 #[inline]
 pub fn is_sep_byte(b: u8) -> bool {
-    b == b'/'
+    b == b':'
 }
 
 #[inline]
 pub fn is_verbatim_sep(b: u8) -> bool {
-    b == b'/'
+    b == b':'
 }
 
-pub fn parse_prefix(prefix: &OsStr) -> Option<Prefix<'_>> {
-    let b = prefix.bytes();
-    let mut components = b.splitn(2, |x| *x == b':');
-    let p = components.next();
-    let remainder = components.next();
-    if remainder.is_some() {
-        Some(Prefix::DeviceNS(unsafe { bytes_as_os_str(p.unwrap()) }))
-    } else {
-        None
-    }
+#[inline]
+pub fn parse_prefix(_: &OsStr) -> Option<Prefix<'_>> {
+    None
 }
 
-pub const MAIN_SEP_STR: &str = "/";
-pub const MAIN_SEP: char = '/';
+pub const MAIN_SEP_STR: &str = ":";
+pub const MAIN_SEP: char = ':';
 
 /// Make a POSIX path absolute without changing its semantics.
 pub(crate) fn absolute(path: &Path) -> io::Result<PathBuf> {
-    // This is mostly a wrapper around collecting `Path::components`, with
-    // exceptions made where this conflicts with the POSIX specification.
-    // See 4.13 Pathname Resolution, IEEE Std 1003.1-2017
-    // https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_13
+    Ok(path.to_owned())
+}
 
-    let mut components = path.components();
-    let path_os = path.as_os_str().bytes();
 
-    let mut normalized = if path.is_absolute() {
-        // "If a pathname begins with two successive <slash> characters, the
-        // first component following the leading <slash> characters may be
-        // interpreted in an implementation-defined manner, although more than
-        // two leading <slash> characters shall be treated as a single <slash>
-        // character."
-        if path_os.starts_with(b"//") && !path_os.starts_with(b"///") {
-            components.next();
-            PathBuf::from("//")
+/// Split a path into its constituant Basis and Dict, if the path is legal.
+pub(crate) fn split_basis_and_dict<'a, F: Fn() -> Option<&'a str>>(
+    src: &'a str,
+    default: F,
+) -> Result<(Option<&'a str>, Option<&'a str>), ()> {
+    let mut basis = None;
+    let dict;
+    if let Some(src) = src.strip_prefix(crate::path::MAIN_SEPARATOR) {
+        if let Some((maybe_basis, maybe_dict)) = src.split_once(crate::path::MAIN_SEPARATOR) {
+            if !maybe_basis.is_empty() {
+                basis = Some(maybe_basis);
+            } else {
+                basis = default();
+            }
+
+            if maybe_dict.is_empty() {
+                dict = None;
+            } else {
+                dict = Some(maybe_dict);
+            }
         } else {
-            PathBuf::new()
+            if !src.is_empty() {
+                basis = Some(src);
+            }
+            dict = None;
         }
     } else {
-        env::current_dir()?
-    };
-    normalized.extend(components);
-
-    // "Interfaces using pathname resolution may specify additional constraints
-    // when a pathname that does not name an existing directory contains at
-    // least one non- <slash> character and contains one or more trailing
-    // <slash> characters".
-    // A trailing <slash> is also meaningful if "a symbolic link is
-    // encountered during pathname resolution".
-    if path_os.ends_with(b"/") {
-        normalized.push("");
+        if src.is_empty() {
+            return Ok((basis, Some("")));
+        }
+        dict = Some(src);
     }
 
-    Ok(normalized)
+    if let Some(basis) = &basis {
+        if basis.ends_with(crate::path::MAIN_SEPARATOR) {
+            return Err(());
+        }
+    }
+    if let Some(dict) = &dict {
+        if dict.ends_with(crate::path::MAIN_SEPARATOR) {
+            return Err(());
+        }
+    }
+    Ok((basis, dict))
 }
