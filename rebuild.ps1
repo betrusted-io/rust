@@ -47,6 +47,10 @@ elseif (Test-CommandExists riscv-none-embed-gcc) {
     $env:CC = "riscv-none-embed-gcc"
     $env:AR = "riscv-none-embed-ar"
 }
+elseif (Test-CommandExists riscv-none-elf-gcc) {
+    $env:CC = "riscv-none-elf-gcc"
+    $env:AR = "riscv-none-elf-ar"
+}
 elseif (Test-CommandExists riscv64-unknown-elf-gcc) {
     $env:CC = "riscv64-unknown-elf-gcc"
     $env:AR = "riscv64-unknown-elf-ar"
