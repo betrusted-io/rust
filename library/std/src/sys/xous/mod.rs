@@ -4,7 +4,6 @@ pub mod alloc;
 pub mod args;
 pub mod cmath;
 pub mod env;
-#[path = "../unsupported/fs.rs"]
 pub mod fs;
 #[path = "../unsupported/io.rs"]
 pub mod io;
@@ -27,6 +26,8 @@ pub mod time;
 
 mod common;
 pub use common::*;
+
+mod senres;
 
 // This function is needed by the panic runtime. The symbol is named in
 // pre-link args for the target specification, so keep that in sync.
