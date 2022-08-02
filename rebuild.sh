@@ -32,7 +32,7 @@ export RUSTFLAGS="-Cforce-unwind-tables=yes -Cembed-bitcode=yes"
 export __CARGO_DEFAULT_LIB_METADATA="stablestd"
 
 command_exists() {
-    which $1 > /dev/null && $1 --version 2>&1 > /dev/null
+    which $1 &> /dev/null && $1 --version 2>&1 > /dev/null
 }
 
 # Set up the C compiler. We need to explicitly specify these variables
@@ -84,7 +84,8 @@ rustc --version | awk '{print $2}' > "$dest_path/RUST_VERSION"
 # Remove stale objects
 rm -f $dest_lib_path/*.rlib
 
-previous_libraries=$(ls -1 $src_path/*.rlib)
+# TODO: Use below to remove duplicates
+# previous_libraries=$(ls -1 $src_path/*.rlib)
 
 cargo build \
     --target riscv32imac-unknown-xous-elf \
