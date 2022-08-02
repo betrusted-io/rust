@@ -92,7 +92,7 @@ impl TcpListener {
                     return Err(io::const_io_error!(io::ErrorKind::ResourceBusy, &"Socket in use"));
                 } else if errcode == NetError::Invalid as u8 {
                     return Err(io::const_io_error!(
-                        io::ErrorKind::InvalidInput,
+                        io::ErrorKind::AddrNotAvailable,
                         &"Port can't be 0 or invalid address"
                     ));
                 } else if errcode == NetError::LibraryError as u8 {
