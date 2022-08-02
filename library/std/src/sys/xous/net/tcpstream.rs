@@ -113,12 +113,12 @@ impl TcpStream {
                     ));
                 } else if errcode == NetError::Unaddressable as u8 {
                     return Err(io::const_io_error!(
-                        io::ErrorKind::InvalidInput,
+                        io::ErrorKind::AddrNotAvailable,
                         &"Invalid address",
                     ));
                 } else {
                     return Err(io::const_io_error!(
-                        io::ErrorKind::Other,
+                        io::ErrorKind::InvalidInput,
                         &"Unable to connect or internal error",
                     ));
                 }
