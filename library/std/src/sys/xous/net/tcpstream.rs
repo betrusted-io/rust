@@ -5,7 +5,7 @@ use crate::io::{self, IoSlice, IoSliceMut};
 use crate::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, SocketAddrV4, SocketAddrV6};
 use crate::sync::Arc;
 use crate::time::Duration;
-use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicUsize, AtomicBool, Ordering};
 
 macro_rules! unimpl {
     () => {
@@ -27,6 +27,7 @@ pub struct TcpStream {
     // milliseconds
     write_timeout: Arc<AtomicU32>,
     handle_count: Arc<AtomicUsize>,
+    nonblocking: Arc<AtomicBool>,
 }
 
 fn sockaddr_to_buf(duration: Duration, addr: &SocketAddr, buf: &mut [u8]) {
@@ -68,6 +69,7 @@ impl TcpStream {
             read_timeout: Arc::new(AtomicU32::new(0)),
             write_timeout: Arc::new(AtomicU32::new(0)),
             handle_count: Arc::new(AtomicUsize::new(1)),
+            nonblocking: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -138,12 +140,21 @@ impl TcpStream {
                 read_timeout: Arc::new(AtomicU32::new(0)),
                 write_timeout: Arc::new(AtomicU32::new(0)),
                 handle_count: Arc::new(AtomicUsize::new(1)),
+                nonblocking: Arc::new(AtomicBool::new(false)),
             });
         }
         Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Invalid response"))
     }
 
     pub fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        if let Some(to) = timeout {
+            if to.is_zero() {
+                return Err(io::const_io_error!(
+                    io::ErrorKind::InvalidInput,
+                    &"Zero is an invalid timeout",
+                ));
+            }
+        }
         self.read_timeout.store(
             timeout.map(|t| t.as_millis().min(u32::MAX as u128) as u32).unwrap_or_default(),
             Ordering::Relaxed,
@@ -152,6 +163,14 @@ impl TcpStream {
     }
 
     pub fn set_write_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        if let Some(to) = timeout {
+            if to.is_zero() {
+                return Err(io::const_io_error!(
+                    io::ErrorKind::InvalidInput,
+                    &"Zero is an invalid timeout",
+                ));
+            }
+        }
         self.write_timeout.store(
             timeout.map(|t| t.as_millis().min(u32::MAX as u128) as u32).unwrap_or_default(),
             Ordering::Relaxed,
@@ -184,7 +203,8 @@ impl TcpStream {
         if let Ok(xous::Result::MemoryReturned(offset, valid)) = xous::send_message(
             services::network(),
             xous::Message::new_lend_mut(
-                33 | (self.fd << 16), /* StdTcpRx */
+                32 | (self.fd << 16)
+                | if self.nonblocking.load(Ordering::SeqCst) { 0x8000 } else { 0 }, /* StdTcpPeek */
                 range,
                 None,
                 xous::MemorySize::new(data_to_read),
@@ -198,7 +218,22 @@ impl TcpStream {
                 }
                 Ok(length)
             } else {
-                Err(io::const_io_error!(io::ErrorKind::Other, &"peek_slice failure"))
+                let result = range.as_slice::<u32>();
+                if result[0] != 0 {
+                    if result[1] == 8 { // timed out
+                        return Err(io::const_io_error!(
+                            io::ErrorKind::TimedOut,
+                            &"Timeout",
+                        ));
+                    }
+                    if result[1] == 9 { // would block
+                        return Err(io::const_io_error!(
+                            io::ErrorKind::WouldBlock,
+                            &"Would block",
+                        ));
+                    }
+                }
+                Err(io::const_io_error!(io::ErrorKind::Other, &"recv_slice peek failure"))
             }
         } else {
             Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Library failure: wrong message type or messaging error"))
@@ -216,7 +251,8 @@ impl TcpStream {
         if let Ok(xous::Result::MemoryReturned(offset, valid)) = xous::send_message(
             services::network(),
             xous::Message::new_lend_mut(
-                33 | (self.fd << 16), /* StdTcpRx */
+                33 | (self.fd << 16)
+                | if self.nonblocking.load(Ordering::SeqCst) { 0x8000 } else { 0 }, /* StdTcpRx */
                 range,
                 // Reuse the `offset` as the read timeout
                 xous::MemoryAddress::new(self.read_timeout.load(Ordering::Relaxed) as usize),
@@ -231,6 +267,21 @@ impl TcpStream {
                 }
                 Ok(length)
             } else {
+                let result = range.as_slice::<u32>();
+                if result[0] != 0 {
+                    if result[1] == 8 { // timed out
+                        return Err(io::const_io_error!(
+                            io::ErrorKind::TimedOut,
+                            &"Timeout",
+                        ));
+                    }
+                    if result[1] == 9 { // would block
+                        return Err(io::const_io_error!(
+                            io::ErrorKind::WouldBlock,
+                            &"Would block",
+                        ));
+                    }
+                }
                 Err(io::const_io_error!(io::ErrorKind::Other, &"recv_slice failure"))
             }
         } else {
@@ -275,10 +326,22 @@ impl TcpStream {
         if let xous::Result::MemoryReturned(_offset, _valid) = response {
             let result = range.as_slice::<u32>();
             if result[0] != 0 {
-                return Err(io::const_io_error!(
-                    io::ErrorKind::InvalidInput,
-                    &"Error when sending",
-                ));
+                if result[1] == 8 { // timed out
+                    return Err(io::const_io_error!(
+                        io::ErrorKind::BrokenPipe,
+                        &"Timeout or connection closed",
+                    ));
+                } else if result[1] == 9 { // would block
+                    return Err(io::const_io_error!(
+                        io::ErrorKind::WouldBlock,
+                        &"Would block",
+                    ));
+                } else {
+                    return Err(io::const_io_error!(
+                        io::ErrorKind::InvalidInput,
+                        &"Error when sending",
+                    ));
+                }
             }
             Ok(result[1] as usize)
         } else {
@@ -457,8 +520,9 @@ impl TcpStream {
         Ok(None)
     }
 
-    pub fn set_nonblocking(&self, _: bool) -> io::Result<()> {
-        unimpl!();
+    pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+        self.nonblocking.store(nonblocking, Ordering::SeqCst);
+        Ok(())
     }
 }
 
