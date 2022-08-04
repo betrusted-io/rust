@@ -26,12 +26,12 @@ pub struct TcpListener {
 
 impl TcpListener {
     pub fn bind(socketaddr: io::Result<&SocketAddr>) -> io::Result<TcpListener> {
-        let addr = socketaddr?;
+        let mut addr = *socketaddr?;
 
-        let fd = TcpListener::bind_inner(addr)?;
+        let fd = TcpListener::bind_inner(&mut addr)?;
         return Ok(TcpListener {
             fd: Arc::new(AtomicUsize::new(fd)),
-            local: *addr,
+            local: addr,
             handle_count: Arc::new(AtomicUsize::new(1)),
             nonblocking: Arc::new(AtomicBool::new(false)),
         });
@@ -40,7 +40,7 @@ impl TcpListener {
     /// This returns the raw fd of a Listener, so that it can also be used by the
     /// accept routine to replenish the Listener object after its handle has been converted into
     /// a TcpStream object.
-    fn bind_inner(addr: &SocketAddr) -> io::Result<usize> {
+    fn bind_inner(addr: &mut SocketAddr) -> io::Result<usize> {
         // Construct the request
         let mut connect_request = ConnectRequest { raw: [0u8; 4096] };
 
@@ -93,7 +93,7 @@ impl TcpListener {
                 } else if errcode == NetError::Invalid as u8 {
                     return Err(io::const_io_error!(
                         io::ErrorKind::AddrNotAvailable,
-                        &"Port can't be 0 or invalid address"
+                        &"Invalid address"
                     ));
                 } else if errcode == NetError::LibraryError as u8 {
                     return Err(io::const_io_error!(io::ErrorKind::Other, &"Library error"));
@@ -105,6 +105,10 @@ impl TcpListener {
                 }
             }
             let fd = response[1] as usize;
+            if addr.port() == 0 { // oddly enough, this is a valid port and it means "give me something valid, up to you what that is"
+                let assigned_port = u16::from_le_bytes(response[2..4].try_into().unwrap());
+                addr.set_port(assigned_port);
+            }
             // println!("TcpListening with file handle of {}\r\n", fd);
             return Ok(fd);
         }
@@ -178,7 +182,8 @@ impl TcpListener {
                 };
 
                 // replenish the listener
-                let new_fd = TcpListener::bind_inner(&self.local)?;
+                let mut local_copy = self.local.clone(); // port is non-0 by this time, but the method signature needs a mut
+                let new_fd = TcpListener::bind_inner(&mut local_copy)?;
                 self.fd.store(new_fd, Ordering::Relaxed);
 
                 // now return a stream converted from the old stream's fd
