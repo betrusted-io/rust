@@ -1,5 +1,6 @@
 use super::mutex::Mutex;
 use crate::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use crate::sys_common::lazy_box::{LazyBox, LazyInit};
 use crate::sys::services::ticktimer;
 use crate::time::Duration;
 
@@ -13,7 +14,15 @@ pub struct Condvar {
     index: AtomicUsize,
 }
 
-pub type MovableCondvar = Condvar;
+pub(crate) type MovableCondvar = LazyBox<Condvar>;
+
+impl LazyInit for Condvar {
+    fn init() -> Box<Self> {
+        let this = Self::new();
+        this.index.store(CONDVAR_INDEX.fetch_add(1, SeqCst), SeqCst);
+        Box::new(this)
+    }
+}
 
 unsafe impl Send for Condvar {}
 unsafe impl Sync for Condvar {}
@@ -24,10 +33,6 @@ impl Condvar {
             counter: AtomicUsize::new(0),
             index: AtomicUsize::new(0),
         }
-    }
-
-    pub unsafe fn init(&mut self) {
-        self.index.store(CONDVAR_INDEX.fetch_add(1, SeqCst), SeqCst);
     }
 
     pub unsafe fn notify_one(&self) {
@@ -98,6 +103,4 @@ impl Condvar {
 
         xous::Result::Scalar1(0) == result
     }
-
-    pub unsafe fn destroy(&self) {}
 }
