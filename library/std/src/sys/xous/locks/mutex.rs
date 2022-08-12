@@ -102,7 +102,4 @@ impl Mutex {
     pub unsafe fn try_lock_or_poison(&self) -> bool {
         self.locked.fetch_add(1, SeqCst) == 0
     }
-
-    #[inline]
-    pub unsafe fn destroy(&self) {}
 }
