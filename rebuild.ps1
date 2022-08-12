@@ -82,10 +82,6 @@ if (-Not( Test-Path $dest_lib_path)) {
     New-Item -Path $dest_lib_path -ItemType Directory
 }
 
-if (-Not(Test-Path "$dest_path\target.json")) {
-    Copy-Item "riscv32imac-unknown-xous-elf.json" "$dest_path\target.json"
-}
-
 $(rustc --version).split(" ")[1] | New-Item -Path "$dest_path\RUST_VERSION" -force
 
 # Remove stale objects

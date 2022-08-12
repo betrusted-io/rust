@@ -74,11 +74,6 @@ dest_lib_path="$dest_path/lib"
 
 mkdir -p $dest_lib_path
 
-if [ ! -e "$dest_path/target.json" ]
-then
-    cp "riscv32imac-unknown-xous-elf.json" "$dest_path/target.json"
-fi
-
 rustc --version | awk '{print $2}' > "$dest_path/RUST_VERSION"
 
 # Remove stale objects
