@@ -220,38 +220,6 @@ pub trait Senres {
         }
     }
 
-    #[cfg(all(target_os = "xous", target_arch = "riscv32"))]
-    fn lend(&self, connection: u32, opcode: usize) -> Result<(), ()> {
-        let mut a0 = Syscall::SendMessage as usize;
-        let a1: usize = connection.try_into().unwrap();
-        let a2 = InvokeType::Lend as usize;
-        let a3 = opcode;
-        let a4 = self.as_ptr() as usize;
-        let a5 = self.len();
-
-        unsafe {
-            core::arch::asm!(
-                "ecall",
-                inlateout("a0") a0,
-                inlateout("a1") a1 => _,
-                inlateout("a2") a2 => _,
-                inlateout("a3") a3 => _,
-                inlateout("a4") a4 => _,
-                inlateout("a5") a5 => _,
-                out("a6") _,
-                out("a7") _,
-            )
-        };
-
-        let result = a0;
-        if result == SyscallResult::MemoryReturned as usize {
-            Ok(())
-        } else {
-            println!("Unexpected memory return value: {}", result);
-            Err(())
-        }
-    }
-
     #[cfg(all(target_os = "xous", target_arch = "arm"))]
     fn lend(&self, connection: u32, opcode: usize) -> Result<(), ()> {
         let mut r0 = Syscall::SendMessage as usize;
