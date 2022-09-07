@@ -3,17 +3,26 @@ name: Rust for Xous
 on: [push]
 
 jobs:
-  build-libstd-riscv32:
+  build-libstd:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Setup riscv gnu/gcc toolchain
-        uses: gregdavill/setup-riscv-gnu-toolchain@v1.0
+    strategy:
+      matrix:
+        target: [riscv32imac-unknown-xous-elf, armv7a-unknown-xous-eabihf]
 
+    steps:
       - name: Checkout
         uses: actions/checkout@v2
         with:
           submodules: 'recursive'
+
+      - name: Setup RISC-V GCC Toolchain
+        uses: gregdavill/setup-riscv-gnu-toolchain@v1.0
+        if: matrix.target == 'riscv32imac-unknown-xous-elf'
+
+      - name: Setup ARM Profile-A GCC toolchain
+        run: sudo apt install gcc-arm-linux-gnueabihf
+        if: matrix.target == 'armv7a-unknown-xous-eabihf'
 
       - name: Determine Rust version
         shell: bash
@@ -26,27 +35,30 @@ jobs:
           toolchain: ${{ steps.extract_rust_version.outputs.version }}
           default: true
           override: true
-          target: riscv32imac-unknown-none-elf
+          target: ${{ matrix.target }}
 
-      - name: Install riscv32imac-unknown-xous-elf toolchain file
+      - name: Install toolchain file
         run: |
           rm -rf $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf \
           && mkdir -p $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib \
+          && cp ${{ matrix.target }}.json $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/target.json \
           && rustc --version | awk '{print $2}' > $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/RUST_VERSION
+
+      - name: Patch LLVM for 128-bit support
+        run: sed -i '/^#define CRT_HAS_128BIT/d' src/llvm-project/compiler-rt/lib/builtins/int_types.h
 
       - name: Build Rust libstd
         run: |
           export RUST_COMPILER_RT_ROOT=$(pwd)/src/llvm-project/compiler-rt \
           && rm -rf target \
-          && sed -i '/^#define CRT_HAS_128BIT/d' src/llvm-project/compiler-rt/lib/builtins/int_types.h \
           && cargo build \
-            --target riscv32imac-unknown-xous-elf \
+            --target ${{ matrix.target }} \
             -Zbinary-dep-depinfo \
             --release \
             --features "panic-unwind compiler-builtins-c compiler-builtins-mem" \
             --manifest-path "library/test/Cargo.toml" \
-          && cp target/riscv32imac-unknown-xous-elf/release/deps/*.rlib $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib \
-          && (dest=$(pwd) && cd $(rustc --print sysroot) && zip -r ${dest}/riscv32imac-unknown-xous_${{ steps.extract_rust_version.outputs.version }}.zip lib/rustlib/riscv32imac-unknown-xous-elf/)
+          && cp target/${{ matrix.target }}/release/deps/*.rlib $(rustc --print sysroot)/lib/rustlib/${{ matrix.target }}/lib \
+          && (dest=$(pwd) && cd $(rustc --print sysroot) && zip -r ${dest}/${{ matrix.target }}_${{ steps.extract_rust_version.outputs.version }}.zip lib/rustlib/${{ matrix.target }}/)
         env:
           CARGO_PROFILE_RELEASE_DEBUG: 0
           CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: true
@@ -61,66 +73,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            riscv32imac-unknown-xous_${{ steps.extract_rust_version.outputs.version }}.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-libstd-arm:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Setup arm gnu/gcc toolchain
-        run: gcc-arm-linux-gnueabihf
-
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          submodules: 'recursive'
-
-      - name: Determine Rust version
-        shell: bash
-        run: echo "##[set-output name=version;]$(echo ${GITHUB_REF} | cut -d/ -f3 | cut -d- -f1 | cut -d. -f1,2,3)"
-        id: extract_rust_version
-
-      - name: Install Rust toolchain v${{ steps.extract_rust_version.outputs.version }}
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ steps.extract_rust_version.outputs.version }}
-          default: true
-          override: true
-          target: armv7a-none-eabi # TODO: hard float??
-
-      - name: Install armv7a-unknown-xous-eabihf toolchain file
-        run: |
-          rm -rf $(rustc --print sysroot)/lib/rustlib/armv7a-unknown-xous-eabihf \
-          && mkdir -p $(rustc --print sysroot)/lib/rustlib/armv7a-unknown-xous-eabihf/lib \
-          && cp armv7a-unknown-xous-eabihf.json $(rustc --print sysroot)/lib/rustlib/armv7a-unknown-xous-eabihf/target.json \
-          && rustc --version | awk '{print $2}' > $(rustc --print sysroot)/lib/rustlib/armv7a-unknown-xous-eabihf/RUST_VERSION
-
-      - name: Build Rust libstd
-        run: |
-          cargo build \
-            --target armv7a-unknown-xous-eabihf \
-            -Zbinary-dep-depinfo \
-            --release \
-            --features "panic-unwind compiler-builtins-c compiler-builtins-mem" \
-            --manifest-path "library/test/Cargo.toml" \
-          && cp target/armv7a-unknown-xous-eabihf/release/deps/*.rlib $(rustc --print sysroot)/lib/rustlib/armv7a-unknown-xous-eabihf/lib \
-          && (dest=$(pwd) && cd $(rustc --print sysroot) && zip -r ${dest}/armv7a-unknown-xous_${{ steps.extract_rust_version.outputs.version }}.zip lib/rustlib/armv7a-unknown-xous-eabihf/)
-        env:
-          CARGO_PROFILE_RELEASE_DEBUG: 0
-          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: true
-          RUSTC_BOOTSTRAP: 1
-          RUSTFLAGS: -Cforce-unwind-tables=yes -Cembed-bitcode=yes
-          __CARGO_DEFAULT_LIB_METADATA: stablestd
-          CC: arm-linux-gnueabihf-gcc
-          AR: arm-linux-gnueabihf-ar
-
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            armv7a-unknown-xous_${{ steps.extract_rust_version.outputs.version }}.zip
+            ${{ matrix.target }}_${{ steps.extract_rust_version.outputs.version }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
