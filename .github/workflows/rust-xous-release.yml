@@ -29,13 +29,29 @@ jobs:
         run: echo "##[set-output name=version;]$(echo ${GITHUB_REF} | cut -d/ -f3 | cut -d- -f1 | cut -d. -f1,2,3)"
         id: extract_rust_version
 
+      - name: Determine Rust target
+        shell: bash
+        id: extract_rust_target
+        run: |
+          case "${{ matrix.target }}" in
+            riscv32imac-unknown-xous-elf)
+              target=riscv32imac-unknown-none-elf
+            ;;
+
+            armv7a-unknown-xous-eabihf)
+              target=armv7a-none-eabi
+            ;;
+          esac
+
+          echo "##[set-output name=target;]$target"
+
       - name: Install Rust toolchain v${{ steps.extract_rust_version.outputs.version }}
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ steps.extract_rust_version.outputs.version }}
           default: true
           override: true
-          target: ${{ matrix.target }}
+          target: ${{ steps.extract_rust_target.outputs.target }}
 
       - name: Install toolchain file
         run: |
