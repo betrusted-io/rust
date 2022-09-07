@@ -39,10 +39,10 @@ jobs:
 
       - name: Install toolchain file
         run: |
-          rm -rf $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf \
-          && mkdir -p $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib \
-          && cp ${{ matrix.target }}.json $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/target.json \
-          && rustc --version | awk '{print $2}' > $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/RUST_VERSION
+          rm -rf $(rustc --print sysroot)/lib/rustlib/${{ matrix.target }} \
+          && mkdir -p $(rustc --print sysroot)/lib/rustlib/${{ matrix.target }}/lib \
+          && cp ${{ matrix.target }}.json $(rustc --print sysroot)/lib/rustlib/${{ matrix.target }}/target.json \
+          && rustc --version | awk '{print $2}' > $(rustc --print sysroot)/lib/rustlib/${{ matrix.target }}/RUST_VERSION
 
       - name: Patch LLVM for 128-bit support
         run: sed -i '/^#define CRT_HAS_128BIT/d' src/llvm-project/compiler-rt/lib/builtins/int_types.h
