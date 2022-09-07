@@ -23,6 +23,7 @@ const TLS_MEMORY_SIZE: usize = 4096;
 /// TLS keys start at `1` to mimic POSIX.
 static TLS_KEY_INDEX: AtomicUsize = AtomicUsize::new(1);
 
+#[cfg(target_arch = "riscv32")]
 fn tls_ptr_addr() -> usize {
     let mut tp: usize;
     unsafe {
@@ -34,8 +35,14 @@ fn tls_ptr_addr() -> usize {
     tp
 }
 
+#[cfg(target_arch = "arm")]
+fn tls_ptr_addr() -> usize {
+    0
+}
+
 /// Create an area of memory that's unique per thread. This area will
 /// contain all thread local pointers.
+#[cfg(target_arch = "riscv32")]
 fn tls_ptr() -> *mut usize {
     let mut tp = tls_ptr_addr();
 
@@ -65,6 +72,11 @@ fn tls_ptr() -> *mut usize {
         }
     }
     tp as *mut usize
+}
+
+#[cfg(target_arch = "arm")]
+fn tls_ptr() -> *mut usize {
+    0 as *mut usize // TODO: design and implement.
 }
 
 /// Allocate a new TLS key. These keys are shared among all threads.

@@ -280,32 +280,61 @@ impl File {
         }
         let mut buffer = ReadBuffer { data: [0u8; 4096] };
 
-        let mut a0 = Syscall::SendMessage as usize;
-        let mut a1: usize = services::pddb() as usize;
-        let mut a2 = InvokeType::LendMut as usize;
-        let a3 = (pddb::Opcodes::ReadKeyStd as usize) | ((self.fd as usize) << 16);
-        let a4 = buffer.data.as_mut_ptr() as usize;
-        let a5 = buffer.data.len();
-        let a6 = 0;
-        let a7 = buf.len().min(buffer.data.len());
 
-        unsafe {
-            core::arch::asm!(
-                "ecall",
-                inlateout("a0") a0,
-                inlateout("a1") a1,
-                inlateout("a2") a2,
-                inlateout("a3") a3 => _,
-                inlateout("a4") a4 => _,
-                inlateout("a5") a5 => _,
-                inlateout("a6") a6 => _,
-                inlateout("a7") a7 => _,
-            )
+        #[cfg(target_arch = "riscv32")]
+        let (result, offset, valid) = {
+            let mut a0 = Syscall::SendMessage as usize;
+            let mut a1: usize = services::pddb() as usize;
+            let mut a2 = InvokeType::LendMut as usize;
+            let a3 = (pddb::Opcodes::ReadKeyStd as usize) | ((self.fd as usize) << 16);
+            let a4 = buffer.data.as_mut_ptr() as usize;
+            let a5 = buffer.data.len();
+            let a6 = 0;
+            let a7 = buf.len().min(buffer.data.len());
+
+            unsafe {
+                core::arch::asm!(
+                    "ecall",
+                    inlateout("a0") a0,
+                    inlateout("a1") a1,
+                    inlateout("a2") a2,
+                    inlateout("a3") a3 => _,
+                    inlateout("a4") a4 => _,
+                    inlateout("a5") a5 => _,
+                    inlateout("a6") a6 => _,
+                    inlateout("a7") a7 => _,
+                )
+            };
+
+            (a0, a1, a2)
         };
 
-        let result = a0;
-        let offset = a1;
-        let valid = a2;
+        #[cfg(target_arch = "arm")]
+        let (result, offset, valid) = {
+            let mut r0 = senres::Syscall::SendMessage as usize;
+            let mut r1: usize = services::pddb() as usize;
+            let mut r2 = senres::InvokeType::LendMut as usize;
+            let r3 = (pddb::Opcodes::ReadKeyStd as usize) | ((self.fd as usize) << 16);
+            let r4 = buffer.data.as_mut_ptr() as usize;
+            let r5 = buffer.data.len();
+            let r7 = buf.len().min(buffer.data.len());
+
+            unsafe {
+                core::arch::asm!(
+                    "svc 0",
+                    inlateout("r0") r0,
+                    inlateout("r1") r1,
+                    inlateout("r2") r2,
+                    inlateout("r3") r3 => _,
+                    inlateout("r4") r4 => _,
+                    inlateout("r5") r5 => _,
+                    inlateout("r7") r7 => _,
+                )
+            };
+
+            (r0, r1, r2)
+        };
+
 
         if result == SyscallResult::MemoryReturned as usize {
             if offset != 0 {
@@ -321,7 +350,7 @@ impl File {
             }
             Ok(valid)
         } else {
-            println!("Unexpected memory return value: {} ({}, {})", result, a1, a2);
+            println!("Unexpected memory return value: {} ({}, {})", result, offset, valid);
             Err(crate::io::Error::new(crate::io::ErrorKind::Other, "invalid return from syscall"))
         }
     }
@@ -353,33 +382,61 @@ impl File {
             }
         }
 
-        let mut a0 = Syscall::SendMessage as usize;
-        let mut a1: usize = services::pddb() as usize;
-        // Note this must be a LendMut in order to get error information back
-        let mut a2 = InvokeType::LendMut as usize;
-        let a3 = (pddb::Opcodes::WriteKeyStd as usize) | ((self.fd as usize) << 16);
-        let a4 = buffer.data.as_ptr() as usize;
-        let a5 = buffer.data.len();
-        let a6 = 0;
-        let a7 = valid;
+        #[cfg(target_arch = "riscv32")]
+        let (result, offset, valid) = {
+            let mut a0 = Syscall::SendMessage as usize;
+            let mut a1: usize = services::pddb() as usize;
+            // Note this must be a LendMut in order to get error information back
+            let mut a2 = InvokeType::LendMut as usize;
+            let a3 = (pddb::Opcodes::WriteKeyStd as usize) | ((self.fd as usize) << 16);
+            let a4 = buffer.data.as_ptr() as usize;
+            let a5 = buffer.data.len();
+            let a6 = 0;
+            let a7 = valid;
 
-        unsafe {
-            core::arch::asm!(
-                "ecall",
-                inlateout("a0") a0,
-                inlateout("a1") a1,
-                inlateout("a2") a2,
-                inlateout("a3") a3 => _,
-                inlateout("a4") a4 => _,
-                inlateout("a5") a5 => _,
-                inlateout("a6") a6 => _,
-                inlateout("a7") a7 => _,
-            )
+            unsafe {
+                core::arch::asm!(
+                    "ecall",
+                    inlateout("a0") a0,
+                    inlateout("a1") a1,
+                    inlateout("a2") a2,
+                    inlateout("a3") a3 => _,
+                    inlateout("a4") a4 => _,
+                    inlateout("a5") a5 => _,
+                    inlateout("a6") a6 => _,
+                    inlateout("a7") a7 => _,
+                )
+            };
+
+            (a0, a1, a2)
         };
 
-        let result = a0;
-        let offset = a1;
-        let valid = a2;
+        #[cfg(target_arch = "arm")]
+        let (result, offset, valid) = {
+            let mut r0 = senres::Syscall::SendMessage as usize;
+            let mut r1: usize = services::pddb() as usize;
+            // Note this must be a LendMut in order to get error information back
+            let mut r2 = senres::InvokeType::LendMut as usize;
+            let r3 = (pddb::Opcodes::WriteKeyStd as usize) | ((self.fd as usize) << 16);
+            let r4 = buffer.data.as_ptr() as usize;
+            let r5 = buffer.data.len();
+            let r7 = valid;
+
+            unsafe {
+                core::arch::asm!(
+                    "svc 0",
+                    inlateout("r0") r0,
+                    inlateout("r1") r1,
+                    inlateout("r2") r2,
+                    inlateout("r3") r3 => _,
+                    inlateout("r4") r4 => _,
+                    inlateout("r5") r5 => _,
+                    inlateout("r7") r7 => _,
+                )
+            };
+
+            (r0, r1, r2)
+        };
 
         if result == SyscallResult::MemoryReturned as usize {
             if offset == 0 {
@@ -391,7 +448,7 @@ impl File {
                 ))
             }
         } else {
-            println!("Unexpected memory return value: {} ({}, {})", result, a1, a2);
+            println!("Unexpected memory return value: {} ({}, {})", result, offset, valid);
             Err(crate::io::Error::new(crate::io::ErrorKind::Other, "invalid return from syscall"))
         }
     }
@@ -416,30 +473,62 @@ impl File {
         arg3: usize,
         arg4: usize,
     ) -> Result<(usize, usize), ()> {
-        let mut a0 = Syscall::SendMessage as usize;
-        let mut a1: usize = services::pddb() as usize;
-        let mut a2 = InvokeType::BlockingScalar as usize;
-        let a3 = opcode;
-        let a4 = arg1;
-        let a5 = arg2;
-        let a6 = arg3;
-        let a7 = arg4;
+        #[cfg(target_arch = "riscv32")]
+        let (result, a1, a2) = {
+            let mut a0 = Syscall::SendMessage as usize;
+            let mut a1: usize = services::pddb() as usize;
+            let mut a2 = InvokeType::BlockingScalar as usize;
+            let a3 = opcode;
+            let a4 = arg1;
+            let a5 = arg2;
+            let a6 = arg3;
+            let a7 = arg4;
 
-        unsafe {
-            core::arch::asm!(
-                "ecall",
-                inout("a0") a0,
-                inout("a1") a1,
-                inout("a2") a2,
-                inout("a3") a3 => _,
-                inout("a4") a4 => _,
-                inout("a5") a5 => _,
-                inout("a6") a6 => _,
-                inout("a7") a7 => _,
-            )
+            unsafe {
+                core::arch::asm!(
+                    "ecall",
+                    inout("a0") a0,
+                    inout("a1") a1,
+                    inout("a2") a2,
+                    inout("a3") a3 => _,
+                    inout("a4") a4 => _,
+                    inout("a5") a5 => _,
+                    inout("a6") a6 => _,
+                    inout("a7") a7 => _,
+                )
+            };
+
+            (a0, a1, a2)
         };
 
-        let result = a0;
+        #[cfg(target_arch = "arm")]
+        let (result, a1, a2) = {
+            let mut r0 = senres::Syscall::SendMessage as usize;
+            let mut r1: usize = services::pddb() as usize;
+            let mut r2 = senres::InvokeType::BlockingScalar as usize;
+            let r3 = opcode;
+            let r4 = arg1;
+            let r5 = arg2;
+            //let r6 = arg3; TODO:
+            let r7 = arg4;
+
+            unsafe {
+                core::arch::asm!(
+                    "svc 0",
+                    inout("r0") r0,
+                    inout("r1") r1,
+                    inout("r2") r2,
+                    inout("r3") r3 => _,
+                    inout("r4") r4 => _,
+                    inout("r5") r5 => _,
+                    //inout("r6") r6 => _,
+                    inout("r7") r7 => _,
+                )
+            };
+
+            (r0, r1, r0)
+        };
+
         if result == SyscallResult::Scalar2 as usize {
             Ok((a1, a2))
         } else if result == SyscallResult::Scalar1 as usize {

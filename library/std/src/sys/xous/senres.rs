@@ -56,7 +56,7 @@ impl<'a> Message<'a> {
     }
 }
 
-#[cfg(target_os = "xous")]
+#[cfg(all(target_os = "xous", target_arch = "riscv32"))]
 fn return_memory_message(message_id: usize, data_addr: usize, data_len: usize) -> usize {
     let a0 = Syscall::ReturnMemory as usize;
 
@@ -79,6 +79,33 @@ fn return_memory_message(message_id: usize, data_addr: usize, data_len: usize) -
             inlateout("a5") a5 => _,
             out("a6") _,
             out("a7") _,
+        )
+    };
+    result
+}
+
+#[cfg(all(target_os = "xous", target_arch = "arm"))]
+fn return_memory_message(message_id: usize, data_addr: usize, data_len: usize) -> usize {
+    let r0 = Syscall::ReturnMemory as usize;
+
+    // "Offset"
+    let r4 = 0;
+
+    // "Valid"
+    let r5 = 0;
+
+    let mut result: usize;
+
+    unsafe {
+        core::arch::asm!(
+            "svc 0",
+            inlateout("r0") r0 => result,
+            inlateout("r1") message_id => _,
+            inlateout("r2") data_addr => _,
+            inlateout("r3") data_len=> _,
+            inlateout("r4") r4 => _,
+            inlateout("r5") r5 => _,
+            out("r7") _,
         )
     };
     result
@@ -161,7 +188,7 @@ pub trait Senres {
         Ok(())
     }
 
-    #[cfg(target_os = "xous")]
+    #[cfg(all(target_os = "xous", target_arch = "riscv32"))]
     fn lend(&self, connection: u32, opcode: usize) -> Result<(), ()> {
         let mut a0 = Syscall::SendMessage as usize;
         let a1: usize = connection.try_into().unwrap();
@@ -192,6 +219,69 @@ pub trait Senres {
             Err(())
         }
     }
+
+    #[cfg(all(target_os = "xous", target_arch = "riscv32"))]
+    fn lend(&self, connection: u32, opcode: usize) -> Result<(), ()> {
+        let mut a0 = Syscall::SendMessage as usize;
+        let a1: usize = connection.try_into().unwrap();
+        let a2 = InvokeType::Lend as usize;
+        let a3 = opcode;
+        let a4 = self.as_ptr() as usize;
+        let a5 = self.len();
+
+        unsafe {
+            core::arch::asm!(
+                "ecall",
+                inlateout("a0") a0,
+                inlateout("a1") a1 => _,
+                inlateout("a2") a2 => _,
+                inlateout("a3") a3 => _,
+                inlateout("a4") a4 => _,
+                inlateout("a5") a5 => _,
+                out("a6") _,
+                out("a7") _,
+            )
+        };
+
+        let result = a0;
+        if result == SyscallResult::MemoryReturned as usize {
+            Ok(())
+        } else {
+            println!("Unexpected memory return value: {}", result);
+            Err(())
+        }
+    }
+
+    #[cfg(all(target_os = "xous", target_arch = "arm"))]
+    fn lend(&self, connection: u32, opcode: usize) -> Result<(), ()> {
+        let mut r0 = Syscall::SendMessage as usize;
+        let r1: usize = connection.try_into().unwrap();
+        let r2 = InvokeType::Lend as usize;
+        let r3 = opcode;
+        let r4 = self.as_ptr() as usize;
+        let r5 = self.len();
+
+        unsafe {
+            core::arch::asm!(
+                "svc 0",
+                inlateout("r0") r0,
+                inlateout("r1") r1 => _,
+                inlateout("r2") r2 => _,
+                inlateout("r3") r3 => _,
+                inlateout("r4") r4 => _,
+                inlateout("r5") r5 => _,
+                out("r7") _,
+            )
+        };
+
+        let result = r0;
+        if result == SyscallResult::MemoryReturned as usize {
+            Ok(())
+        } else {
+            println!("Unexpected memory return value: {}", result);
+            Err(())
+        }
+    }
 }
 
 pub trait SenresMut: Senres {
@@ -213,7 +303,7 @@ pub trait SenresMut: Senres {
     fn lend_mut(&mut self, _connection: u32, _opcode: usize) -> Result<(usize, usize), ()> {
         Ok((0, 0))
     }
-    #[cfg(target_os = "xous")]
+    #[cfg(all(target_os = "xous", target_arch = "riscv32"))]
     fn lend_mut(&mut self, connection: u32, opcode: usize) -> Result<(usize, usize), ()> {
         let mut a0 = Syscall::SendMessage as usize;
         let mut a1: usize = connection.try_into().unwrap();
@@ -244,6 +334,39 @@ pub trait SenresMut: Senres {
             Ok((offset, valid))
         } else {
             println!("Unexpected memory return value: {} ({})", result, a1);
+            Err(())
+        }
+    }
+    #[cfg(all(target_os = "xous", target_arch = "arm"))]
+    fn lend_mut(&mut self, connection: u32, opcode: usize) -> Result<(usize, usize), ()> {
+        let mut r0 = Syscall::SendMessage as usize;
+        let mut r1: usize = connection.try_into().unwrap();
+        let mut r2 = InvokeType::LendMut as usize;
+        let r3 = opcode;
+        let r4 = self.as_mut_ptr() as usize;
+        let r5 = self.len();
+
+        unsafe {
+            core::arch::asm!(
+                "svc 0",
+                inlateout("r0") r0,
+                inlateout("r1") r1,
+                inlateout("r2") r2,
+                inlateout("r3") r3 => _,
+                inlateout("r4") r4 => _,
+                inlateout("r5") r5 => _,
+                out("r7") _,
+            )
+        };
+
+        let result = r0;
+        let offset = r1;
+        let valid = r2;
+
+        if result == SyscallResult::MemoryReturned as usize {
+            Ok((offset, valid))
+        } else {
+            println!("Unexpected memory return value: {} ({})", result, offset);
             Err(())
         }
     }
