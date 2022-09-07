@@ -24,34 +24,35 @@ jobs:
         run: sudo apt install gcc-arm-linux-gnueabihf
         if: matrix.target == 'armv7a-unknown-xous-eabihf'
 
-      - name: Determine Rust version
+      - name: Extract Rust information.
         shell: bash
-        run: echo "##[set-output name=version;]$(echo ${GITHUB_REF} | cut -d/ -f3 | cut -d- -f1 | cut -d. -f1,2,3)"
-        id: extract_rust_version
-
-      - name: Determine Rust target
-        shell: bash
-        id: extract_rust_target
+        id: extract_rust_info
         run: |
           case "${{ matrix.target }}" in
             riscv32imac-unknown-xous-elf)
               target=riscv32imac-unknown-none-elf
+              target_cross_compile=riscv-none-embed
             ;;
 
             armv7a-unknown-xous-eabihf)
               target=armv7a-none-eabi
+              target_cross_compile=arm-linux-gnueabihf
             ;;
           esac
 
           echo "##[set-output name=target;]$target"
+          echo "##[set-output name=version;]$(echo ${GITHUB_REF} | cut -d/ -f3 | cut -d- -f1 | cut -d. -f1,2,3)"
+          echo "##[set-output name=cc;]$target_cross_compile-gcc"
+          echo "##[set-output name=ar;]$target_cross_compile-ar"
 
-      - name: Install Rust toolchain v${{ steps.extract_rust_version.outputs.version }}
+
+      - name: Install Rust toolchain v${{ steps.extract_rust_info.outputs.version }}
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ steps.extract_rust_version.outputs.version }}
+          toolchain: ${{ steps.extract_rust_info.outputs.version }}
           default: true
           override: true
-          target: ${{ steps.extract_rust_target.outputs.target }}
+          target: ${{ steps.extract_rust_info.outputs.target }}
 
       - name: Install toolchain file
         run: |
@@ -74,21 +75,21 @@ jobs:
             --features "panic-unwind compiler-builtins-c compiler-builtins-mem" \
             --manifest-path "library/test/Cargo.toml" \
           && cp target/${{ matrix.target }}/release/deps/*.rlib $(rustc --print sysroot)/lib/rustlib/${{ matrix.target }}/lib \
-          && (dest=$(pwd) && cd $(rustc --print sysroot) && zip -r ${dest}/${{ matrix.target }}_${{ steps.extract_rust_version.outputs.version }}.zip lib/rustlib/${{ matrix.target }}/)
+          && (dest=$(pwd) && cd $(rustc --print sysroot) && zip -r ${dest}/${{ matrix.target }}_${{ steps.extract_rust_info.outputs.version }}.zip lib/rustlib/${{ matrix.target }}/)
         env:
           CARGO_PROFILE_RELEASE_DEBUG: 0
           CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: true
           RUSTC_BOOTSTRAP: 1
           RUSTFLAGS: -Cforce-unwind-tables=yes -Cembed-bitcode=yes
           __CARGO_DEFAULT_LIB_METADATA: stablestd
-          CC: riscv-none-embed-gcc
-          AR: riscv-none-embed-ar
+          CC: ${{ steps.extract_rust_info.outputs.cc }}
+          AR: ${{ steps.extract_rust_info.outputs.ar }}
 
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            ${{ matrix.target }}_${{ steps.extract_rust_version.outputs.version }}.zip
+            ${{ matrix.target }}_${{ steps.extract_rust_info.outputs.version }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
