@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # Everything you push to main will do a test build, and let you know if it breaks.
 #
 # Things only get released if you tag it. And the actual build is based on the tag.
@@ -18,8 +18,26 @@
 
 set -e
 set -u
-# set -x
+set -x
 set -o pipefail
+
+usage() {
+    echo "Usage: $0 [-t <riscv32imac-unknown-xous-elf|armv7a-unknown-xous-eabihf>]"
+    exit 1
+}
+
+while getopts "t:" o; do
+    case "${o}" in
+        t)
+            target=$OPTARG
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+
+target=${target:-riscv32imac-unknown-xous-elf}
 
 rust_sysroot=$(rustc --print sysroot)
 
@@ -37,31 +55,52 @@ command_exists() {
 
 # Set up the C compiler. We need to explicitly specify these variables
 # because the `cc` package obviously doesn't recognize our target triple.
-if command_exists riscv32-unknown-elf-gcc
-then
-    export CC="riscv32-unknown-elf-gcc"
-    export AR="riscv32-unknown-elf-ar"
-elif command_exists riscv-none-embed-gcc
-then
-    export CC ="riscv-none-embed-gcc"
-    export AR ="riscv-none-embed-ar"
-elif command_exists riscv64-unknown-elf-gcc
-then
-    export CC="riscv64-unknown-elf-gcc"
-    export AR="riscv64-unknown-elf-ar"
-else
-    echo "No C compiler found for riscv" 1>&2
-    exit 1
+case "$target" in
+    riscv32imac-unknown-xous-elf)
+        if command_exists riscv32-unknown-elf-gcc
+        then
+            export CC="riscv32-unknown-elf-gcc"
+            export AR="riscv32-unknown-elf-ar"
+        elif command_exists riscv-none-embed-gcc
+        then
+            export CC ="riscv-none-embed-gcc"
+            export AR ="riscv-none-embed-ar"
+        elif command_exists riscv64-unknown-elf-gcc
+        then
+            export CC="riscv64-unknown-elf-gcc"
+            export AR="riscv64-unknown-elf-ar"
+        else
+            echo "No C compiler found for riscv" 1>&2
+            exit 1
+        fi
+        ;;
+
+    armv7a-unknown-xous-eabihf)
+        if command_exists arm-linux-gnueabihf-gcc
+        then
+            export CC="arm-linux-gnueabihf-gcc"
+            export AR="arm-linux-gnueabihf-ar"
+        else
+            echo "No C compiler found for arm" 1>&2
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Invalid toolchain triple" 1>&2
+        exit 1
+        ;;
+esac
+
+# Patch llvm's source to not enable `u128` for our riscv32imac.
+if [ "$target" == "riscv32imac-unknown-xous-elf" ]; then
+    line_to_remove="define CRT_HAS_128BIT"
+    file_to_patch="./src/llvm-project/compiler-rt/lib/builtins/int_types.h"
+    sed -e "/$line_to_remove/d" "$file_to_patch" > "$file_to_patch.tmp"
+    mv "$file_to_patch.tmp" "$file_to_patch"
 fi
 
-# Patch llvm's source to not enable `u128` for our platform.
-line_to_remove="define CRT_HAS_128BIT"
-file_to_patch="./src/llvm-project/compiler-rt/lib/builtins/int_types.h"
-sed -e "/$line_to_remove/d" "$file_to_patch" > "$file_to_patch.tmp"
-mv "$file_to_patch.tmp" "$file_to_patch"
-
-src_path="./target/riscv32imac-unknown-xous-elf/release/deps"
-dest_path="$rust_sysroot/lib/rustlib/riscv32imac-unknown-xous-elf"
+src_path="./target/$target/release/deps"
+dest_path="$rust_sysroot/lib/rustlib/$target"
 dest_lib_path="$dest_path/lib"
 # function Get-ItemBaseName {
 #     param ($ItemName)
@@ -74,16 +113,21 @@ dest_lib_path="$dest_path/lib"
 
 mkdir -p $dest_lib_path
 
+if [ ! -e "$dest_path/target.json" ]
+then
+    cp "$target.json" "$dest_path/target.json"
+fi
+
 rustc --version | awk '{print $2}' > "$dest_path/RUST_VERSION"
 
 # Remove stale objects
 rm -f $dest_lib_path/*.rlib
 
 # TODO: Use below to remove duplicates
-# previous_libraries=$(ls -1 $src_path/*.rlib)
+# previous_libraries=$(ls -1 $src_path/*.rlib || echo "")
 
 cargo build \
-    --target riscv32imac-unknown-xous-elf \
+    --target $target \
     -Zbinary-dep-depinfo \
     --release \
     --features "panic-unwind compiler-builtins-c compiler-builtins-mem" \
