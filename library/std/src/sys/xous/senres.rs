@@ -72,19 +72,10 @@ impl<'a> Message<'a> {
     // Need to figure out how to make the non-mutable version work, since `data`
     // must be a mutable vec.
     pub fn from_slice(data: &'a [u8]) -> Result<Self, ()> {
-        Ok(Message {
-            message_id: 0,
-            auto_return: false,
-            data,
-        })
+        Ok(Message { message_id: 0, auto_return: false, data })
     }
     pub fn from_mut_slice(data: &'a mut [u8]) -> Result<MutableMessage<'a>, ()> {
-        Ok(MutableMessage {
-            message_id: 0,
-            mutable: true,
-            auto_return: false,
-            data,
-        })
+        Ok(MutableMessage { message_id: 0, mutable: true, auto_return: false, data })
     }
     pub fn auto_return(&mut self, enable: bool) {
         self.auto_return = enable;
@@ -123,11 +114,7 @@ impl<'a> Drop for Message<'a> {
     fn drop(&mut self) {
         if self.auto_return {
             #[cfg(target_os = "xous")]
-            return_memory_message(
-                self.message_id,
-                self.data.as_ptr() as usize,
-                self.data.len(),
-            );
+            return_memory_message(self.message_id, self.data.as_ptr() as usize, self.data.len());
         }
     }
 }
@@ -184,10 +171,7 @@ pub trait Senres {
     where
         Self: core::marker::Sized,
     {
-        let reader = Reader {
-            backing: self,
-            offset: core::cell::Cell::new(0),
-        };
+        let reader = Reader { backing: self, offset: core::cell::Cell::new(0) };
         if SENRES_V1_MAGIC != reader.try_get_from().ok()? {
             return None;
         }
@@ -246,10 +230,7 @@ pub trait SenresMut: Senres {
         if !self.can_create_writer() {
             return None;
         }
-        let mut writer = Writer {
-            backing: self,
-            offset: 0,
-        };
+        let mut writer = Writer { backing: self, offset: 0 };
         writer.append(SENRES_V1_MAGIC);
         writer.append(fourcc);
         Some(writer)
@@ -293,7 +274,6 @@ pub trait SenresMut: Senres {
         }
     }
 }
-
 
 pub struct Writer<'a, Backing: SenresMut> {
     backing: &'a mut Backing,
@@ -438,9 +418,7 @@ macro_rules! primitive_impl {
                     return Err(());
                 }
                 let val = Self::from_le_bytes(
-                    senres.backing.as_slice()[offset..offset + my_size]
-                        .try_into()
-                        .unwrap(),
+                    senres.backing.as_slice()[offset..offset + my_size].try_into().unwrap(),
                 );
                 senres.offset.set(offset + my_size);
                 Ok(val)
@@ -562,10 +540,8 @@ impl<T: RecDes<Backing>, Backing: Senres, const N: usize> RecDes<Backing> for [T
 impl<Backing: SenresMut> SenSer<Backing> for str {
     fn append_to(&self, senres: &mut Writer<Backing>) {
         senres.append(self.len() as u32);
-        for (src, dest) in self
-            .as_bytes()
-            .iter()
-            .zip(senres.backing.as_mut_slice()[senres.offset..].iter_mut())
+        for (src, dest) in
+            self.as_bytes().iter().zip(senres.backing.as_mut_slice()[senres.offset..].iter_mut())
         {
             *dest = *src;
             senres.offset += 1;
@@ -576,10 +552,8 @@ impl<Backing: SenresMut> SenSer<Backing> for str {
 impl<Backing: SenresMut> SenSer<Backing> for &str {
     fn append_to(&self, senres: &mut Writer<Backing>) {
         senres.append(self.len() as u32);
-        for (src, dest) in self
-            .as_bytes()
-            .iter()
-            .zip(senres.backing.as_mut_slice()[senres.offset..].iter_mut())
+        for (src, dest) in
+            self.as_bytes().iter().zip(senres.backing.as_mut_slice()[senres.offset..].iter_mut())
         {
             *dest = *src;
             senres.offset += 1;
@@ -594,12 +568,12 @@ impl<Backing: Senres> RecDes<Backing> for String {
         if offset + len > senres.backing.as_slice().len() {
             return Err(());
         }
-        core::str::from_utf8(&senres.backing.as_slice()[offset..offset + len])
-            .or(Err(()))
-            .map(|e| {
+        core::str::from_utf8(&senres.backing.as_slice()[offset..offset + len]).or(Err(())).map(
+            |e| {
                 senres.offset.set(offset + len);
                 e.to_owned()
-            })
+            },
+        )
     }
 }
 
@@ -610,12 +584,12 @@ impl<'a, Backing: Senres> RecDesRef<'a, Backing> for str {
         if offset + len > senres.backing.as_slice().len() {
             return Err(());
         }
-        core::str::from_utf8(&senres.backing.as_slice()[offset..offset + len])
-            .or(Err(()))
-            .map(|e| {
+        core::str::from_utf8(&senres.backing.as_slice()[offset..offset + len]).or(Err(())).map(
+            |e| {
                 senres.offset.set(offset + len);
                 e
-            })
+            },
+        )
     }
 }
 
@@ -683,9 +657,7 @@ fn smoke_test() {
         println!("u32 val: {}", val);
         let val: u64 = reader.try_get_from().expect("couldn't get the u64 value");
         println!("u64 val: {:x}", val);
-        let val: &str = reader
-            .try_get_ref_from()
-            .expect("couldn't get string value");
+        let val: &str = reader.try_get_ref_from().expect("couldn't get string value");
         println!("String val: {}", val);
         let val: String = reader.try_get_from().expect("couldn't get string2 value");
         println!("String2 val: {}", val);
@@ -694,9 +666,7 @@ fn smoke_test() {
         let val: Option<u32> = reader.try_get_from().expect("couldn't get Option<u32>");
         println!("Option<u32> val: {:?}", val);
 
-        let val: u8 = reader
-            .try_get_from()
-            .expect("couldn't get u8 weird padding");
+        let val: u8 = reader.try_get_from().expect("couldn't get u8 weird padding");
         println!("u8 val: {}", val);
 
         let val: &[i32] = reader.try_get_ref_from().expect("couldn't get &[i32]");
