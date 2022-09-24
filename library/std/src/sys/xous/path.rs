@@ -25,7 +25,6 @@ pub(crate) fn absolute(path: &Path) -> io::Result<PathBuf> {
     Ok(path.to_owned())
 }
 
-
 /// Split a path into its constituant Basis and Dict, if the path is legal.
 pub(crate) fn split_basis_and_dict<'a, F: Fn() -> Option<&'a str>>(
     src: &'a str,

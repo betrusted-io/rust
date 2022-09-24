@@ -4,8 +4,8 @@ use crate::fmt;
 use crate::io;
 use crate::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use crate::sync::Arc;
-use core::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use core::convert::TryInto;
+use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 macro_rules! unimpl {
     () => {
@@ -105,7 +105,8 @@ impl TcpListener {
                 }
             }
             let fd = response[1] as usize;
-            if addr.port() == 0 { // oddly enough, this is a valid port and it means "give me something valid, up to you what that is"
+            if addr.port() == 0 {
+                // oddly enough, this is a valid port and it means "give me something valid, up to you what that is"
                 let assigned_port = u16::from_le_bytes(response[2..4].try_into().unwrap());
                 addr.set_port(assigned_port);
             }
@@ -188,13 +189,8 @@ impl TcpListener {
 
                 // now return a stream converted from the old stream's fd
                 Ok((
-                    TcpStream::from_listener(
-                        stream_fd as usize,
-                        self.local.port(),
-                        port,
-                        addr,
-                    ),
-                    addr
+                    TcpStream::from_listener(stream_fd as usize, self.local.port(), port, addr),
+                    addr,
                 ))
             }
         } else {
