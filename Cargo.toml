@@ -122,11 +122,5 @@ rustc-std-workspace-core = { path = 'library/rustc-std-workspace-core' }
 rustc-std-workspace-alloc = { path = 'library/rustc-std-workspace-alloc' }
 rustc-std-workspace-std = { path = 'library/rustc-std-workspace-std' }
 
-# Patch compiler-builtins so that we can enable libm support
-compiler_builtins = { git = "https://github.com/rust-lang/compiler-builtins.git" }
-
-[patch."https://github.com/alexcrichton/dlmalloc-rs.git"]
-dlmalloc = { git = "https://github.com/xobs/dlmalloc-rs.git", branch = "xous-fixes" }
-
 [patch."https://github.com/rust-lang/rust-clippy"]
 clippy_lints = { path = "src/tools/clippy/clippy_lints" }
