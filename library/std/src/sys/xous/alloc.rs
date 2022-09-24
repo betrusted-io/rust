@@ -37,7 +37,6 @@ unsafe impl GlobalAlloc for System {
     }
 }
 
-
 mod lock {
     use crate::sync::atomic::{AtomicI32, Ordering::SeqCst};
 

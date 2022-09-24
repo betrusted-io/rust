@@ -1,5 +1,5 @@
+use crate::sys::services::{systime, ticktimer};
 use crate::time::Duration;
-use crate::sys::services::{ticktimer, systime};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct Instant(Duration);
@@ -13,21 +13,14 @@ impl Instant {
     pub fn now() -> Instant {
         match xous::send_message(
             ticktimer(),
-            xous::Message::new_blocking_scalar(
-                0, /* ElapsedMs */
-                0,
-                0,
-                0,
-                0,
-            ),
+            xous::Message::new_blocking_scalar(0 /* ElapsedMs */, 0, 0, 0, 0),
         )
-        .expect("Ticktimer: failure to request elapsed_ms") {
+        .expect("Ticktimer: failure to request elapsed_ms")
+        {
             xous::Result::Scalar2(lower, upper) => {
-                Instant {
-                    0: Duration::from_millis(lower as u64 | (upper as u64) << 32)
-                }
+                Instant { 0: Duration::from_millis(lower as u64 | (upper as u64) << 32) }
             }
-            _ => panic!("Ticktimer: incorrect response when requesting elapsed_ms")
+            _ => panic!("Ticktimer: incorrect response when requesting elapsed_ms"),
         }
     }
 
@@ -48,21 +41,14 @@ impl SystemTime {
     pub fn now() -> SystemTime {
         match xous::send_message(
             systime(),
-            xous::Message::new_blocking_scalar(
-                3, /* GetUtcTimeMs */
-                0,
-                0,
-                0,
-                0,
-            ),
+            xous::Message::new_blocking_scalar(3 /* GetUtcTimeMs */, 0, 0, 0, 0),
         )
-        .expect("Systime: failure to request UTC time in ms") {
+        .expect("Systime: failure to request UTC time in ms")
+        {
             xous::Result::Scalar2(upper, lower) => {
-                SystemTime {
-                    0: Duration::from_millis((upper as u64) << 32 | lower as u64)
-                }
+                SystemTime { 0: Duration::from_millis((upper as u64) << 32 | lower as u64) }
             }
-            _ => panic!("Ticktimer: incorrect response when requesting elapsed_ms")
+            _ => panic!("Ticktimer: incorrect response when requesting elapsed_ms"),
         }
     }
 
