@@ -45,6 +45,9 @@ pub struct OpenOptions {
     create_new: bool,
 }
 
+#[derive(Copy, Clone, Debug, Default)]
+pub struct FileTimes {}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FilePermissions {}
 
@@ -99,6 +102,11 @@ impl FilePermissions {
     pub fn set_readonly(&mut self, _readonly: bool) {}
 }
 
+impl FileTimes {
+    pub fn set_accessed(&mut self, _t: SystemTime) {}
+    pub fn set_modified(&mut self, _t: SystemTime) {}
+}
+    
 impl FileType {
     pub fn is_dir(&self) -> bool {
         let is_dir = match *self {
@@ -462,12 +470,14 @@ impl File {
     }
 
     pub fn duplicate(&self) -> io::Result<File> {
-        // println!("rust: File::duplicate()");
         unsupported()
     }
 
     pub fn set_permissions(&self, _perm: FilePermissions) -> io::Result<()> {
-        // println!("rust: File::set_permissions()");
+        unsupported()
+    }
+
+    pub fn set_times(&self, _times: FileTimes) -> io::Result<()> {
         unsupported()
     }
 }
