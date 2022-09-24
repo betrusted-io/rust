@@ -106,7 +106,7 @@ impl FileTimes {
     pub fn set_accessed(&mut self, _t: SystemTime) {}
     pub fn set_modified(&mut self, _t: SystemTime) {}
 }
-    
+
 impl FileType {
     pub fn is_dir(&self) -> bool {
         let is_dir = match *self {
@@ -533,7 +533,7 @@ pub fn readdir(p: &Path) -> io::Result<ReadDir> {
     let (_basis, _dict) = match crate::sys::path::split_basis_and_dict(path_as_str, || None) {
         Ok(s) => s,
         Err(_) => {
-            return Err(crate::io::Error::new(crate::io::ErrorKind::Other, "path was not valid"))
+            return Err(crate::io::Error::new(crate::io::ErrorKind::Other, "path was not valid"));
         }
     };
 
