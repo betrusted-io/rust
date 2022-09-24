@@ -36,7 +36,7 @@ features = ['read_core', 'elf', 'macho', 'pe', 'unaligned', 'archive']
 rand = "0.7"
 
 [target.'cfg(any(target_os = "xous", all(target_family = "wasm", not(target_os = "emscripten")), all(target_vendor = "fortanix", target_env = "sgx")))'.dependencies]
-dlmalloc = { git = "https://github.com/alexcrichton/dlmalloc-rs.git", features = ['rustc-dep-of-std'] }
+dlmalloc = { version = "0.2.4", features = ['rustc-dep-of-std'] }
 
 [target.'cfg(target_os = "xous")'.dependencies]
 xous = {version = "0.9.8", features = ['rustc-dep-of-std'], default-features = false }
