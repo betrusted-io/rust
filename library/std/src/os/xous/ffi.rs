@@ -236,11 +236,7 @@ pub fn return_memory(
             inlateout("a7") a7 => _,
         )
     };
-    if result == SyscallResult::MemoryReturned as usize {
-        Ok(())
-    } else {
-        Err(error)
-    }
+    if result == SyscallResult::MemoryReturned as usize { Ok(()) } else { Err(error) }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -270,11 +266,7 @@ pub fn return_scalar(message_id: MessageId, args: [usize; 5]) -> Result<(), usiz
             inlateout("a7") a7 => _,
         )
     };
-    if result == SyscallResult::Ok as usize {
-        Ok(())
-    } else {
-        Err(error)
-    }
+    if result == SyscallResult::Ok as usize { Ok(()) } else { Err(error) }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
