@@ -17,8 +17,8 @@ pub mod path;
 pub mod pipe;
 #[path = "../unsupported/process.rs"]
 pub mod process;
-pub mod stdio;
 pub mod services;
+pub mod stdio;
 pub mod thread;
 pub mod thread_local_dtor;
 pub mod thread_local_key;
