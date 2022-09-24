@@ -22,4 +22,4 @@ echo "Running pre-push script '$COMMAND'"
 
 cd "$ROOT_DIR"
 
-$COMMAND
+$COMMAND || true
