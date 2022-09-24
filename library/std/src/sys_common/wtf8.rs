@@ -548,7 +548,11 @@ impl fmt::Display for Wtf8 {
                 }
                 None => {
                     let s = unsafe { str::from_utf8_unchecked(&wtf8_bytes[pos..]) };
-                    if pos == 0 { return s.fmt(formatter) } else { return formatter.write_str(s) }
+                    if pos == 0 {
+                        return s.fmt(formatter);
+                    } else {
+                        return formatter.write_str(s);
+                    }
                 }
             }
         }

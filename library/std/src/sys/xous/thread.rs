@@ -15,7 +15,7 @@ pub const GUARD_PAGE_SIZE: usize = 4096;
 impl Thread {
     // unsafe: see thread::Builder::spawn_unchecked for safety requirements
     pub unsafe fn new(stack: usize, p: Box<dyn FnOnce()>) -> io::Result<Thread> {
-        let p = Box::into_raw(box p);
+        let p = Box::into_raw(Box::new(p));
         let stack_size = crate::cmp::max(stack, 4096);
 
         // Allocate the whole thing, then divide it up after the fact. This ensures that

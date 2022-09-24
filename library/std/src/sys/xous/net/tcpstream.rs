@@ -5,7 +5,7 @@ use crate::io::{self, IoSlice, IoSliceMut};
 use crate::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, SocketAddrV4, SocketAddrV6};
 use crate::sync::Arc;
 use crate::time::Duration;
-use core::sync::atomic::{AtomicU32, AtomicUsize, AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 
 macro_rules! unimpl {
     () => {
@@ -55,11 +55,11 @@ fn sockaddr_to_buf(duration: Duration, addr: &SocketAddr, buf: &mut [u8]) {
 }
 
 impl TcpStream {
-    pub (crate) fn from_listener(
+    pub(crate) fn from_listener(
         fd: usize,
         local_port: u16,
         remote_port: u16,
-        peer_addr: SocketAddr
+        peer_addr: SocketAddr,
     ) -> TcpStream {
         TcpStream {
             fd,
@@ -109,10 +109,9 @@ impl TcpStream {
                 // errcode is a u8 but stuck in a u16 where the upper byte is invalid. Mask & decode accordingly.
                 let errcode = (response[4] & 0xff) as u8;
                 if errcode == NetError::SocketInUse as u8 {
-                    return Err(io::const_io_error!(
-                        io::ErrorKind::ResourceBusy,
-                        &"Socket in use",
-                    ));
+                    return Err(
+                        io::const_io_error!(io::ErrorKind::ResourceBusy, &"Socket in use",),
+                    );
                 } else if errcode == NetError::Unaddressable as u8 {
                     return Err(io::const_io_error!(
                         io::ErrorKind::AddrNotAvailable,
@@ -204,7 +203,7 @@ impl TcpStream {
             services::network(),
             xous::Message::new_lend_mut(
                 32 | (self.fd << 16)
-                | if self.nonblocking.load(Ordering::SeqCst) { 0x8000 } else { 0 }, /* StdTcpPeek */
+                    | if self.nonblocking.load(Ordering::SeqCst) { 0x8000 } else { 0 }, /* StdTcpPeek */
                 range,
                 None,
                 xous::MemorySize::new(data_to_read),
@@ -220,23 +219,24 @@ impl TcpStream {
             } else {
                 let result = range.as_slice::<u32>();
                 if result[0] != 0 {
-                    if result[1] == 8 { // timed out
-                        return Err(io::const_io_error!(
-                            io::ErrorKind::TimedOut,
-                            &"Timeout",
-                        ));
+                    if result[1] == 8 {
+                        // timed out
+                        return Err(io::const_io_error!(io::ErrorKind::TimedOut, &"Timeout",));
                     }
-                    if result[1] == 9 { // would block
-                        return Err(io::const_io_error!(
-                            io::ErrorKind::WouldBlock,
-                            &"Would block",
-                        ));
+                    if result[1] == 9 {
+                        // would block
+                        return Err(
+                            io::const_io_error!(io::ErrorKind::WouldBlock, &"Would block",),
+                        );
                     }
                 }
                 Err(io::const_io_error!(io::ErrorKind::Other, &"recv_slice peek failure"))
             }
         } else {
-            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Library failure: wrong message type or messaging error"))
+            Err(io::const_io_error!(
+                io::ErrorKind::InvalidInput,
+                &"Library failure: wrong message type or messaging error"
+            ))
         }
     }
 
@@ -252,7 +252,7 @@ impl TcpStream {
             services::network(),
             xous::Message::new_lend_mut(
                 33 | (self.fd << 16)
-                | if self.nonblocking.load(Ordering::SeqCst) { 0x8000 } else { 0 }, /* StdTcpRx */
+                    | if self.nonblocking.load(Ordering::SeqCst) { 0x8000 } else { 0 }, /* StdTcpRx */
                 range,
                 // Reuse the `offset` as the read timeout
                 xous::MemoryAddress::new(self.read_timeout.load(Ordering::Relaxed) as usize),
@@ -269,23 +269,24 @@ impl TcpStream {
             } else {
                 let result = range.as_slice::<u32>();
                 if result[0] != 0 {
-                    if result[1] == 8 { // timed out
-                        return Err(io::const_io_error!(
-                            io::ErrorKind::TimedOut,
-                            &"Timeout",
-                        ));
+                    if result[1] == 8 {
+                        // timed out
+                        return Err(io::const_io_error!(io::ErrorKind::TimedOut, &"Timeout",));
                     }
-                    if result[1] == 9 { // would block
-                        return Err(io::const_io_error!(
-                            io::ErrorKind::WouldBlock,
-                            &"Would block",
-                        ));
+                    if result[1] == 9 {
+                        // would block
+                        return Err(
+                            io::const_io_error!(io::ErrorKind::WouldBlock, &"Would block",),
+                        );
                     }
                 }
                 Err(io::const_io_error!(io::ErrorKind::Other, &"recv_slice failure"))
             }
         } else {
-            Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Library failure: wrong message type or messaging error"))
+            Err(io::const_io_error!(
+                io::ErrorKind::InvalidInput,
+                &"Library failure: wrong message type or messaging error"
+            ))
         }
     }
 
@@ -326,16 +327,15 @@ impl TcpStream {
         if let xous::Result::MemoryReturned(_offset, _valid) = response {
             let result = range.as_slice::<u32>();
             if result[0] != 0 {
-                if result[1] == 8 { // timed out
+                if result[1] == 8 {
+                    // timed out
                     return Err(io::const_io_error!(
                         io::ErrorKind::BrokenPipe,
                         &"Timeout or connection closed",
                     ));
-                } else if result[1] == 9 { // would block
-                    return Err(io::const_io_error!(
-                        io::ErrorKind::WouldBlock,
-                        &"Would block",
-                    ));
+                } else if result[1] == 9 {
+                    // would block
+                    return Err(io::const_io_error!(io::ErrorKind::WouldBlock, &"Would block",));
                 } else {
                     return Err(io::const_io_error!(
                         io::ErrorKind::InvalidInput,

@@ -1,10 +1,10 @@
 #![allow(unused)]
 
+use rand::RngCore;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::thread;
-use rand::RngCore;
 
 /// Copied from `std::test_helpers::test_rng`, since these tests rely on the
 /// seed not being the same for every RNG invocation too.
