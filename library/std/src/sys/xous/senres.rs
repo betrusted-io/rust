@@ -1,38 +1,12 @@
 #![allow(unused)]
+
+use crate::os::xous::ffi::{InvokeType, Syscall, SyscallResult};
 use core::cell::Cell;
 use core::convert::TryInto;
 
 /// Senres V1 always begins with the number 0x344cb6ca to indicate it's valid.
 /// This number will change on subsequent versions.
 const SENRES_V1_MAGIC: u32 = 0x344cb6ca;
-
-#[cfg(target_os = "xous")]
-/// Copies of these invocation types here for when we're running
-/// in environments without libxous.
-pub enum InvokeType {
-    LendMut = 1,
-    Lend = 2,
-    Move = 3,
-    Scalar = 4,
-    BlockingScalar = 5,
-}
-
-#[cfg(target_os = "xous")]
-/// Copies of these invocation types here for when we're running
-/// in environments without libxous.
-pub enum Syscall {
-    SendMessage = 16,
-    ReturnMemory = 20,
-}
-
-#[cfg(target_os = "xous")]
-/// Copies of these invocation types here for when we're running
-/// in environments without libxous.
-pub enum SyscallResult {
-    Scalar1 = 14,
-    Scalar2 = 15,
-    MemoryReturned = 18,
-}
 
 /// A struct to send and receive data. This struct must be page-aligned
 /// in order to be sendable across processes.
