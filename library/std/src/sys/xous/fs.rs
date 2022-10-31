@@ -4,7 +4,7 @@ use crate::ffi::OsString;
 use crate::fmt;
 use crate::hash::Hash;
 use crate::io::{self, IoSlice, IoSliceMut, ReadBuf, SeekFrom};
-use crate::os::xous::ffi::OsStrExt;
+use crate::os::xous::ffi::{InvokeType, OsStrExt, Syscall, SyscallResult};
 use crate::path::{Path, PathBuf};
 use crate::sys::time::SystemTime;
 use crate::sys::unsupported;
@@ -270,9 +270,9 @@ impl File {
         }
         let mut buffer = ReadBuffer { data: [0u8; 4096] };
 
-        let mut a0 = senres::Syscall::SendMessage as usize;
+        let mut a0 = Syscall::SendMessage as usize;
         let mut a1: usize = services::pddb() as usize;
-        let mut a2 = senres::InvokeType::LendMut as usize;
+        let mut a2 = InvokeType::LendMut as usize;
         let a3 = (pddb::Opcodes::ReadKeyStd as usize) | ((self.fd as usize) << 16);
         let a4 = buffer.data.as_mut_ptr() as usize;
         let a5 = buffer.data.len();
@@ -297,7 +297,7 @@ impl File {
         let offset = a1;
         let valid = a2;
 
-        if result == senres::SyscallResult::MemoryReturned as usize {
+        if result == SyscallResult::MemoryReturned as usize {
             if offset != 0 {
                 return Err(crate::io::Error::new(
                     crate::io::ErrorKind::Other,
@@ -343,10 +343,10 @@ impl File {
             }
         }
 
-        let mut a0 = senres::Syscall::SendMessage as usize;
+        let mut a0 = Syscall::SendMessage as usize;
         let mut a1: usize = services::pddb() as usize;
         // Note this must be a LendMut in order to get error information back
-        let mut a2 = senres::InvokeType::LendMut as usize;
+        let mut a2 = InvokeType::LendMut as usize;
         let a3 = (pddb::Opcodes::WriteKeyStd as usize) | ((self.fd as usize) << 16);
         let a4 = buffer.data.as_ptr() as usize;
         let a5 = buffer.data.len();
@@ -371,7 +371,7 @@ impl File {
         let offset = a1;
         let valid = a2;
 
-        if result == senres::SyscallResult::MemoryReturned as usize {
+        if result == SyscallResult::MemoryReturned as usize {
             if offset == 0 {
                 Ok(valid)
             } else {
@@ -406,9 +406,9 @@ impl File {
         arg3: usize,
         arg4: usize,
     ) -> Result<(usize, usize), ()> {
-        let mut a0 = senres::Syscall::SendMessage as usize;
+        let mut a0 = Syscall::SendMessage as usize;
         let mut a1: usize = services::pddb() as usize;
-        let mut a2 = senres::InvokeType::BlockingScalar as usize;
+        let mut a2 = InvokeType::BlockingScalar as usize;
         let a3 = opcode;
         let a4 = arg1;
         let a5 = arg2;
@@ -430,9 +430,9 @@ impl File {
         };
 
         let result = a0;
-        if result == senres::SyscallResult::Scalar2 as usize {
+        if result == SyscallResult::Scalar2 as usize {
             Ok((a1, a2))
-        } else if result == senres::SyscallResult::Scalar1 as usize {
+        } else if result == SyscallResult::Scalar1 as usize {
             println!("error in seeking: {}", a1);
             Err(())
         } else {
