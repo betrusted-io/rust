@@ -108,3 +108,20 @@ pub(crate) fn name_server() -> Connection {
     NAME_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
     cid
 }
+
+/// Return a `Connection` to the log server, which is used for printing messages to
+/// the console and reporting panics. If the log server has not yet started, this
+/// will block until the server is running. It is safe to call this multiple times,
+/// because the address is shared among all threads in a process.
+pub(crate) fn log_server() -> Connection {
+    static LOG_SERVER_CONNECTION: AtomicU32 = AtomicU32::new(0);
+
+    let cid = LOG_SERVER_CONNECTION.load(Ordering::Relaxed);
+    if cid != 0 {
+        return cid.into();
+    }
+
+    let cid = crate::os::xous::ffi::connect("xous-log-server ".try_into().unwrap()).unwrap();
+    LOG_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
+    cid
+}
