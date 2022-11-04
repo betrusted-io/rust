@@ -35,8 +35,8 @@ features = ['read_core', 'elf', 'macho', 'pe', 'unaligned', 'archive']
 [dev-dependencies]
 rand = "0.7"
 
-[target.'cfg(any(all(target_family = "wasm", not(target_os = "emscripten")), all(target_vendor = "fortanix", target_env = "sgx")))'.dependencies]
-dlmalloc = { version = "0.2.3", features = ['rustc-dep-of-std'] }
+[target.'cfg(any(all(target_family = "wasm", not(target_os = "emscripten")), all(target_vendor = "fortanix", target_env = "sgx"), target_os = "xous"))'.dependencies]
+dlmalloc = { version = "0.2.4", features = ['rustc-dep-of-std'] }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 fortanix-sgx-abi = { version = "0.5.0", features = ['rustc-dep-of-std'] }
