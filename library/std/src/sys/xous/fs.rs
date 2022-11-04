@@ -3,7 +3,7 @@ use alloc::str::FromStr;
 use crate::ffi::OsString;
 use crate::fmt;
 use crate::hash::Hash;
-use crate::io::{self, IoSlice, IoSliceMut, ReadBuf, SeekFrom};
+use crate::io::{self, IoSlice, IoSliceMut, BorrowedCursor, SeekFrom};
 use crate::os::xous::ffi::{InvokeType, OsStrExt, Syscall, SyscallResult};
 use crate::path::{Path, PathBuf};
 use crate::sys::time::SystemTime;
@@ -324,8 +324,8 @@ impl File {
         false
     }
 
-    pub fn read_buf(&self, buf: &mut ReadBuf<'_>) -> io::Result<()> {
-        crate::io::default_read_buf(|buf| self.read(buf), buf)
+    pub fn read_buf(&self, cursor: BorrowedCursor<'_>) -> io::Result<()> {
+        crate::io::default_read_buf(|buf| self.read(buf), cursor)
     }
 
     pub fn write(&self, buf: &[u8]) -> io::Result<usize> {
