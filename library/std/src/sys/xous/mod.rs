@@ -29,7 +29,6 @@ pub mod process;
 pub mod stdio;
 pub mod thread;
 pub mod thread_local_key;
-#[path = "../unsupported/time.rs"]
 pub mod time;
 
 #[path = "../unsupported/common.rs"]

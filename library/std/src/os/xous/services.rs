@@ -139,3 +139,17 @@ pub(crate) fn ticktimer_server() -> Connection {
     TICKTIMER_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
     cid
 }
+
+/// Return a `Connection` to the systime server. This server is used for reporting the
+/// realtime clock.
+pub(crate) fn systime_server() -> Connection {
+    static SYSTIME_SERVER_CONNECTION: AtomicU32 = AtomicU32::new(0);
+    let cid = SYSTIME_SERVER_CONNECTION.load(Ordering::Relaxed);
+    if cid != 0 {
+        return cid.into();
+    }
+
+    let cid = crate::os::xous::ffi::connect("timeserverpublic".try_into().unwrap()).unwrap();
+    SYSTIME_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
+    cid
+}
