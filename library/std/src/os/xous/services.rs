@@ -125,3 +125,17 @@ pub(crate) fn log_server() -> Connection {
     LOG_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
     cid
 }
+
+/// Return a `Connection` to the ticktimer server. This server is used for synchronization
+/// primitives such as sleep, Mutex, and Condvar.
+pub(crate) fn ticktimer_server() -> Connection {
+    static TICKTIMER_SERVER_CONNECTION: AtomicU32 = AtomicU32::new(0);
+    let cid = TICKTIMER_SERVER_CONNECTION.load(Ordering::Relaxed);
+    if cid != 0 {
+        return cid.into();
+    }
+
+    let cid = crate::os::xous::ffi::connect("ticktimer-server".try_into().unwrap()).unwrap();
+    TICKTIMER_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
+    cid
+}
