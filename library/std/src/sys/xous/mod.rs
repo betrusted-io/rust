@@ -27,7 +27,6 @@ pub mod pipe;
 #[path = "../unsupported/process.rs"]
 pub mod process;
 pub mod stdio;
-#[path = "../unsupported/thread.rs"]
 pub mod thread;
 pub mod thread_local_key;
 #[path = "../unsupported/time.rs"]
