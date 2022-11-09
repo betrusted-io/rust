@@ -12,6 +12,9 @@ mod definitions;
 #[stable(feature = "rust1", since = "1.0.0")]
 pub use definitions::*;
 
+// Senres is a utility for sending and receiving serialized data.
+pub(crate) mod senres;
+
 fn lend_mut_impl(
     connection: Connection,
     opcode: usize,
