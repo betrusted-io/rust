@@ -139,3 +139,18 @@ pub(crate) fn ticktimer_server() -> Connection {
     TICKTIMER_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
     cid
 }
+
+/// Return a `Connection` to the Plausibly Deniable DataBase server, which is used as
+/// the filesystem on Precursor.
+pub(crate) fn pddb_server() -> Connection {
+    static PDDB_SERVER_CONNECTION: AtomicU32 = AtomicU32::new(0);
+    let cid = PDDB_SERVER_CONNECTION.load(Ordering::Relaxed);
+    if cid != 0 {
+        return cid.into();
+    }
+
+    let cid =
+        crate::os::xous::ffi::connect("_Plausibly Deniable Database_".try_into().unwrap()).unwrap();
+    PDDB_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
+    cid
+}
