@@ -72,23 +72,6 @@ pub struct PanicWriter {
     gfx_conn: Option<crate::os::xous::ffi::Connection>,
 }
 
-impl PanicWriter {
-    // Group `usize` bytes into a `usize` and return it, beginning
-    // from `offset` * sizeof(usize) bytes from the start. For example,
-    // `group_or_null([1,2,3,4,5,6,7,8], 1)` on a 32-bit system will
-    // return a usize with 5678 packed into it.
-    fn group_or_null(data: &[u8], offset: usize) -> usize {
-        let start = offset * core::mem::size_of::<usize>();
-        let mut out_array = [0u8; core::mem::size_of::<usize>()];
-        if start < data.len() {
-            for (dest, src) in out_array.iter_mut().zip(&data[start..]) {
-                *dest = *src;
-            }
-        }
-        usize::from_le_bytes(out_array)
-    }
-}
-
 impl io::Write for PanicWriter {
     fn write(&mut self, s: &[u8]) -> core::result::Result<usize, io::Error> {
         for c in s.chunks(core::mem::size_of::<usize>() * 4) {
@@ -97,13 +80,7 @@ impl io::Write for PanicWriter {
             // Ignore errors since we're already panicking.
             crate::os::xous::ffi::try_scalar(
                 self.conn,
-                [
-                    1100 + c.len(),
-                    Self::group_or_null(&c, 0),
-                    Self::group_or_null(&c, 1),
-                    Self::group_or_null(&c, 2),
-                    Self::group_or_null(&c, 3),
-                ],
+                crate::os::xous::services::LogScalar::AppendPanicMessage(&c).into(),
             )
             .ok();
         }
@@ -152,7 +129,11 @@ pub fn panic_output() -> Option<impl io::Write> {
             let pw = PanicWriter { conn, gfx_conn };
 
             // Send the "We're panicking" message (1000).
-            crate::os::xous::ffi::scalar(conn, [1000 /* BeginPanic */, 0, 0, 0, 0]).ok();
+            crate::os::xous::ffi::scalar(
+                conn,
+                crate::os::xous::services::PanicToScreenScalar::BeginPanic.into(),
+            )
+            .ok();
             *pwr.borrow_mut() = Some(pw);
         }
         *pwr.borrow()

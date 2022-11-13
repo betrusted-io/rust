@@ -12,7 +12,7 @@ impl Instant {
     pub fn now() -> Instant {
         let result = crate::os::xous::ffi::blocking_scalar(
             crate::os::xous::services::ticktimer_server(),
-            [0 /* ElapsedMs */, 0, 0, 0, 0],
+            crate::os::xous::services::TicktimerScalar::ElapsedMs.into(),
         )
         .expect("failed to request elapsed_ms");
         let lower = result[0];
@@ -37,7 +37,7 @@ impl SystemTime {
     pub fn now() -> SystemTime {
         let result = crate::os::xous::ffi::blocking_scalar(
             crate::os::xous::services::systime_server(),
-            [3 /* GetUtcTimeMs */, 0, 0, 0, 0],
+            crate::os::xous::services::SystimeScalar::GetUtcTimeMs.into(),
         )
         .expect("failed to request utc time in ms");
         let lower = result[0];

@@ -49,7 +49,8 @@ impl Mutex {
         // value of `lock` may be anything (0, 1, 2, ...).
         blocking_scalar(
             ticktimer_server(),
-            [6 /* LockMutex */, self as *const Mutex as usize, 0, 0, 0],
+            crate::os::xous::services::TicktimerScalar::LockMutex(self as *const Mutex as usize)
+                .into(),
         )
         .expect("failure to send LockMutex command");
     }
@@ -71,8 +72,12 @@ impl Mutex {
         }
 
         // Unblock one thread that is waiting on this message.
-        scalar(ticktimer_server(), [7 /* UnlockMutex */, self as *const Mutex as usize, 0, 0, 0])
-            .expect("failure to send UnlockMutex command");
+        scalar(
+            ticktimer_server(),
+            crate::os::xous::services::TicktimerScalar::UnlockMutex(self as *const Mutex as usize)
+                .into(),
+        )
+        .expect("failure to send UnlockMutex command");
     }
 
     #[inline]

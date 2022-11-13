@@ -21,18 +21,25 @@ impl Condvar {
         Condvar { counter: AtomicUsize::new(0) }
     }
 
-    pub unsafe fn notify_one(&self) {
+    pub fn notify_one(&self) {
         if self.counter.load(SeqCst) > 0 {
             self.counter.fetch_sub(1, SeqCst);
-            scalar(ticktimer_server(), [9 /* NotifyCondition */, self.index(), 1, 0, 0])
-                .expect("failure to send NotifyCondition command");
+            scalar(
+                ticktimer_server(),
+                crate::os::xous::services::TicktimerScalar::NotifyCondition(self.index(), 1).into(),
+            )
+            .expect("failure to send NotifyCondition command");
         }
     }
 
-    pub unsafe fn notify_all(&self) {
+    pub fn notify_all(&self) {
         let counter = self.counter.swap(0, SeqCst);
-        scalar(ticktimer_server(), [9 /* NotifyCondition */, self.index(), counter, 0, 0])
-            .expect("failure to send NotifyCondition command");
+        scalar(
+            ticktimer_server(),
+            crate::os::xous::services::TicktimerScalar::NotifyCondition(self.index(), counter)
+                .into(),
+        )
+        .expect("failure to send NotifyCondition command");
     }
 
     fn index(&self) -> usize {
@@ -42,8 +49,11 @@ impl Condvar {
     pub unsafe fn wait(&self, mutex: &Mutex) {
         self.counter.fetch_add(1, SeqCst);
         unsafe { mutex.unlock() };
-        blocking_scalar(ticktimer_server(), [8 /* WaitForCondition */, self.index(), 0, 0, 0])
-            .expect("Ticktimer: failure to send WaitForCondition command");
+        blocking_scalar(
+            ticktimer_server(),
+            crate::os::xous::services::TicktimerScalar::WaitForCondition(self.index(), 0).into(),
+        )
+        .expect("Ticktimer: failure to send WaitForCondition command");
         unsafe { mutex.lock() };
     }
 
@@ -53,7 +63,8 @@ impl Condvar {
         let millis = dur.as_millis() as usize;
         let result = blocking_scalar(
             ticktimer_server(),
-            [8 /* WaitForCondition */, self.index(), millis, 0, 0],
+            crate::os::xous::services::TicktimerScalar::WaitForCondition(self.index(), millis)
+                .into(),
         )
         .expect("Ticktimer: failure to send WaitForCondition command");
         unsafe { mutex.lock() };

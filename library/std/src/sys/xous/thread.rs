@@ -122,7 +122,7 @@ impl Thread {
                 if millis > (usize::MAX as _) { usize::MAX } else { millis as usize };
             crate::os::xous::ffi::blocking_scalar(
                 crate::os::xous::services::ticktimer_server(),
-                [1 /* SleepMs */, sleep_duration, 0, 0, 0],
+                crate::os::xous::services::TicktimerScalar::SleepMs(sleep_duration).into(),
             )
             .expect("failed to send message to ticktimer server");
             millis -= sleep_duration as u128;
