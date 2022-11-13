@@ -1,6 +1,18 @@
 use crate::os::xous::ffi::Connection;
 use core::sync::atomic::{AtomicU32, Ordering};
 
+mod log;
+pub(crate) use log::*;
+
+mod panic_to_screen;
+pub(crate) use panic_to_screen::*;
+
+mod ticktimer;
+pub(crate) use ticktimer::*;
+
+mod systime;
+pub(crate) use systime::*;
+
 mod ns {
     const NAME_MAX_LENGTH: usize = 64;
     use crate::os::xous::ffi::{lend_mut, Connection};
@@ -106,50 +118,5 @@ pub(crate) fn name_server() -> Connection {
 
     let cid = crate::os::xous::ffi::connect("xous-name-server".try_into().unwrap()).unwrap();
     NAME_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
-    cid
-}
-
-/// Return a `Connection` to the log server, which is used for printing messages to
-/// the console and reporting panics. If the log server has not yet started, this
-/// will block until the server is running. It is safe to call this multiple times,
-/// because the address is shared among all threads in a process.
-pub(crate) fn log_server() -> Connection {
-    static LOG_SERVER_CONNECTION: AtomicU32 = AtomicU32::new(0);
-
-    let cid = LOG_SERVER_CONNECTION.load(Ordering::Relaxed);
-    if cid != 0 {
-        return cid.into();
-    }
-
-    let cid = crate::os::xous::ffi::connect("xous-log-server ".try_into().unwrap()).unwrap();
-    LOG_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
-    cid
-}
-
-/// Return a `Connection` to the ticktimer server. This server is used for synchronization
-/// primitives such as sleep, Mutex, and Condvar.
-pub(crate) fn ticktimer_server() -> Connection {
-    static TICKTIMER_SERVER_CONNECTION: AtomicU32 = AtomicU32::new(0);
-    let cid = TICKTIMER_SERVER_CONNECTION.load(Ordering::Relaxed);
-    if cid != 0 {
-        return cid.into();
-    }
-
-    let cid = crate::os::xous::ffi::connect("ticktimer-server".try_into().unwrap()).unwrap();
-    TICKTIMER_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
-    cid
-}
-
-/// Return a `Connection` to the systime server. This server is used for reporting the
-/// realtime clock.
-pub(crate) fn systime_server() -> Connection {
-    static SYSTIME_SERVER_CONNECTION: AtomicU32 = AtomicU32::new(0);
-    let cid = SYSTIME_SERVER_CONNECTION.load(Ordering::Relaxed);
-    if cid != 0 {
-        return cid.into();
-    }
-
-    let cid = crate::os::xous::ffi::connect("timeserverpublic".try_into().unwrap()).unwrap();
-    SYSTIME_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
     cid
 }
