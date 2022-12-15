@@ -1,6 +1,6 @@
 # Rust Stable for Xous
 
-Build stable Rust binaries for Xous! This release targets Rust 1.64.0.
+Build stable Rust binaries for Xous! This release targets Rust 1.66.0.
 
 ## Supported Features
 
@@ -20,12 +20,12 @@ When porting the standard library to a new operating system, a piecemeal approac
 
 ## Installing Prebuilt Releases
 
-1. Ensure you are running Rust 1.64.0. Future versions of Rust will need a different version of this software.
+1. Ensure you are running Rust 1.66.0. Future versions of Rust will need a different version of this software.
 2. Download the latest release from the [releases](https://github.com/betrusted-io/rust/releases/latest) page
 3. Unzip the zipfile to your Rust sysroot. On Unix systems can do this with something like:
 ```sh
 cd $(rustc --print sysroot)
-wget https://github.com/betrusted-io/rust/releases/latest/download/riscv32imac-unknown-xous_1.64.0.zip
+wget https://github.com/betrusted-io/rust/releases/latest/download/riscv32imac-unknown-xous_1.66.0.zip
 rm -rf lib/rustlib/riscv32imac-unknown-xous-elf # Remove any existing version
 unzip *.zip
 rm *.zip
@@ -37,7 +37,7 @@ On Windows with Powershell you can run:
 ```powershell
 Push-Location $(rustc --print sysroot)
 if (Test-Path lib\rustlib\riscv32imac-unknown-xous-elf) { Remove-Item -Recurse -Force lib\rustlib\riscv32imac-unknown-xous-elf }
-Invoke-WebRequest -Uri https://github.com/betrusted-io/rust/releases/latest/download/riscv32imac-unknown-xous_1.64.0.zip -Outfile toolchain.zip
+Invoke-WebRequest -Uri https://github.com/betrusted-io/rust/releases/latest/download/riscv32imac-unknown-xous_1.66.0.zip -Outfile toolchain.zip
 Expand-Archive -DestinationPath . -Path toolchain.zip
 Remove-Item toolchain.zip
 Pop-Location
