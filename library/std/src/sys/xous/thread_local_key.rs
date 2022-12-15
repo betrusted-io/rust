@@ -98,11 +98,6 @@ pub unsafe fn destroy(_key: Key) {
     panic!("can't destroy keys on Xous");
 }
 
-#[inline]
-pub fn requires_synchronized_create() -> bool {
-    true
-}
-
 // -------------------------------------------------------------------------
 // Dtor registration (stolen from Windows)
 //
