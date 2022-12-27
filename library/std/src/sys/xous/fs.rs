@@ -161,7 +161,15 @@ impl DirEntry {
     }
 
     pub fn metadata(&self) -> io::Result<FileAttr> {
-        Ok(FileAttr { kind: self.kind, len: 0 })
+        match self.kind {
+            FileType::None | FileType::Unknown => {
+                Err(crate::io::Error::new(
+                    crate::io::ErrorKind::NotFound,
+                    "File or directory does not exist, or is corrupted"
+                ))
+            }
+            _ => Ok(FileAttr { kind: self.kind, len: 0 })
+        }
     }
 
     pub fn file_type(&self) -> io::Result<FileType> {
@@ -706,7 +714,15 @@ pub fn stat(p: &Path) -> io::Result<FileAttr> {
         _ => FileType::Unknown,
     };
 
-    return Ok(FileAttr { kind, len: 0 });
+    match kind {
+        FileType::None | FileType::Unknown => {
+            Err(crate::io::Error::new(
+                crate::io::ErrorKind::NotFound,
+                "File or directory does not exist, or is corrupted"
+            ))
+        }
+        _ => Ok(FileAttr { kind, len: 0 })
+    }
 }
 
 pub fn lstat(_p: &Path) -> io::Result<FileAttr> {
