@@ -12,6 +12,8 @@ use crate::sys::xous::services;
 
 use super::senres::{self, Senres, SenresMut};
 
+pub use crate::sys_common::fs::try_exists;
+
 mod pddb;
 
 pub struct File {
@@ -663,23 +665,18 @@ pub fn remove_dir_all(path: &Path) -> io::Result<()> {
     rmdir(path)
 }
 
-pub fn try_exists(_path: &Path) -> io::Result<bool> {
-    // println!("rust: try_exists()");
-    unsupported()
-}
-
-pub fn readlink(_p: &Path) -> io::Result<PathBuf> {
-    // println!("rust: readlink()");
-    unsupported()
+pub fn readlink(p: &Path) -> io::Result<PathBuf> {
+    stat(p)?;
+    Err(io::const_io_error!(io::ErrorKind::InvalidInput, "not a symbolic link"))
 }
 
 pub fn symlink(_original: &Path, _link: &Path) -> io::Result<()> {
-    // println!("rust: symlink()");
+    // This target doesn't support symlinks
     unsupported()
 }
 
 pub fn link(_src: &Path, _dst: &Path) -> io::Result<()> {
-    // println!("rust: link()");
+    // This target doesn't support links
     unsupported()
 }
 
@@ -725,9 +722,9 @@ pub fn stat(p: &Path) -> io::Result<FileAttr> {
     }
 }
 
-pub fn lstat(_p: &Path) -> io::Result<FileAttr> {
-    // println!("rust: lstat()");
-    unsupported()
+pub fn lstat(p: &Path) -> io::Result<FileAttr> {
+    // This target doesn't support symlinks
+    stat(p)
 }
 
 pub fn canonicalize(_p: &Path) -> io::Result<PathBuf> {
@@ -735,7 +732,11 @@ pub fn canonicalize(_p: &Path) -> io::Result<PathBuf> {
     unsupported()
 }
 
-pub fn copy(_from: &Path, _to: &Path) -> io::Result<u64> {
-    // println!("rust: copy()");
-    unsupported()
+pub fn copy(from: &Path, to: &Path) -> io::Result<u64> {
+    use crate::fs::File;
+
+    let mut reader = File::open(from)?;
+    let mut writer = File::create(to)?;
+
+    io::copy(&mut reader, &mut writer)
 }
