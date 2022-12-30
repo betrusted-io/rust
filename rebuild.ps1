@@ -94,9 +94,12 @@ if (Test-Path $src_path) {
         $base_string = Get-ItemBaseName ($item.Name)
         # Write-Output "Base string is $base_string"
         if ($previous_libraries.ContainsKey($base_string)) {
-            throw "There is a duplicate of $base_string!"
+            if (-not $base_string -like "libcfg_if*") {
+                throw "There is a duplicate of $base_string!"
+            }
+        } else {
+            $previous_libraries.add($base_string, $item.Name)
         }
-        $previous_libraries.add($base_string, $item.Name)
     }
 }
 
