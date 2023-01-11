@@ -8,7 +8,7 @@ jobs:
 
     strategy:
       matrix:
-        target: [riscv32imac-unknown-xous-elf, armv7a-unknown-xous-eabihf]
+        target: [riscv32imac-unknown-xous-elf, armv7a-unknown-xous-elf]
 
     steps:
       - name: Checkout
@@ -21,8 +21,8 @@ jobs:
         if: matrix.target == 'riscv32imac-unknown-xous-elf'
 
       - name: Setup ARM Profile-A GCC toolchain
-        run: sudo apt install gcc-arm-linux-gnueabihf
-        if: matrix.target == 'armv7a-unknown-xous-eabihf'
+        run: sudo apt install gcc-arm-none-eabi
+        if: matrix.target == 'armv7a-unknown-xous-elf'
 
       - name: Extract Rust information.
         shell: bash
@@ -34,9 +34,9 @@ jobs:
               target_cross_compile=riscv-none-embed
             ;;
 
-            armv7a-unknown-xous-eabihf)
+            armv7a-unknown-xous-elf)
               target=armv7a-none-eabi
-              target_cross_compile=arm-linux-gnueabihf
+              target_cross_compile=arm-none-eabi
             ;;
           esac
 

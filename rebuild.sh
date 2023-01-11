@@ -22,7 +22,7 @@ set -x
 set -o pipefail
 
 usage() {
-    echo "Usage: $0 [-t <riscv32imac-unknown-xous-elf|armv7a-unknown-xous-eabihf>]"
+    echo "Usage: $0 [-t <riscv32imac-unknown-xous-elf|armv7a-unknown-xous-elf>]"
     exit 1
 }
 
@@ -75,11 +75,11 @@ case "$target" in
         fi
         ;;
 
-    armv7a-unknown-xous-eabihf)
-        if command_exists arm-linux-gnueabihf-gcc
+    armv7a-unknown-xous-elf)
+        if command_exists arm-none-eabi-gcc
         then
-            export CC="arm-linux-gnueabihf-gcc"
-            export AR="arm-linux-gnueabihf-ar"
+            export CC="arm-none-eabi-gcc"
+            export AR="arm-none-eabi-ar"
         else
             echo "No C compiler found for arm" 1>&2
             exit 1
