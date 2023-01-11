@@ -311,9 +311,9 @@ impl File {
 
         #[cfg(target_arch = "arm")]
         let (result, offset, valid) = {
-            let mut r0 = senres::Syscall::SendMessage as usize;
+            let mut r0 = Syscall::SendMessage as usize;
             let mut r1: usize = services::pddb() as usize;
-            let mut r2 = senres::InvokeType::LendMut as usize;
+            let mut r2 = InvokeType::LendMut as usize;
             let r3 = (pddb::Opcodes::ReadKeyStd as usize) | ((self.fd as usize) << 16);
             let r4 = buffer.data.as_mut_ptr() as usize;
             let r5 = buffer.data.len();
@@ -413,10 +413,10 @@ impl File {
 
         #[cfg(target_arch = "arm")]
         let (result, offset, valid) = {
-            let mut r0 = senres::Syscall::SendMessage as usize;
+            let mut r0 = Syscall::SendMessage as usize;
             let mut r1: usize = services::pddb() as usize;
             // Note this must be a LendMut in order to get error information back
-            let mut r2 = senres::InvokeType::LendMut as usize;
+            let mut r2 = InvokeType::LendMut as usize;
             let r3 = (pddb::Opcodes::WriteKeyStd as usize) | ((self.fd as usize) << 16);
             let r4 = buffer.data.as_ptr() as usize;
             let r5 = buffer.data.len();
@@ -503,9 +503,9 @@ impl File {
 
         #[cfg(target_arch = "arm")]
         let (result, a1, a2) = {
-            let mut r0 = senres::Syscall::SendMessage as usize;
+            let mut r0 = Syscall::SendMessage as usize;
             let mut r1: usize = services::pddb() as usize;
-            let mut r2 = senres::InvokeType::BlockingScalar as usize;
+            let mut r2 = InvokeType::BlockingScalar as usize;
             let r3 = opcode;
             let r4 = arg1;
             let r5 = arg2;

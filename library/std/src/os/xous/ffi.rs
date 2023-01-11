@@ -142,6 +142,7 @@ pub fn lend_mut(
     let a6 = arg1;
     let a7 = arg2;
 
+    #[cfg(target_arch = "riscv32")]
     unsafe {
         core::arch::asm!(
             "ecall",
@@ -153,6 +154,21 @@ pub fn lend_mut(
             inlateout("a5") a5 => _,
             inlateout("a6") a6 => _,
             inlateout("a7") a7 => _,
+        )
+    };
+
+    #[cfg(target_arch = "arm")]
+    unsafe {
+        core::arch::asm!(
+            "svc 0",
+            inlateout("r0") a0,
+            inlateout("r1") a1,
+            inlateout("r2") a2,
+            inlateout("r3") a3 => _,
+            inlateout("r4") a4 => _,
+            inlateout("r5") a5 => _,
+            // inlateout("r6") a6 => _,
+            inlateout("r7") a7 => _,
         )
     };
 
@@ -184,6 +200,7 @@ pub fn lend(
     let mut a6 = arg1;
     let mut a7 = arg2;
 
+    #[cfg(target_arch = "riscv32")]
     unsafe {
         core::arch::asm!(
             "ecall",
@@ -195,6 +212,21 @@ pub fn lend(
             inlateout("a5") a5 => _,
             inlateout("a6") a6,
             inlateout("a7") a7,
+        )
+    };
+
+    #[cfg(target_arch = "arm")]
+    unsafe {
+        core::arch::asm!(
+            "svc 0",
+            inlateout("r0") a0,
+            inlateout("r1") a1 => _,
+            inlateout("r2") a2 => _,
+            inlateout("r3") a3 => _,
+            inlateout("r4") a4 => _,
+            inlateout("r5") a5 => _,
+            // inlateout("r6") a6,
+            inlateout("r7") a7,
         )
     };
 
@@ -223,6 +255,7 @@ pub fn return_memory(
     let mut result: usize;
     let mut error: usize;
 
+    #[cfg(target_arch = "riscv32")]
     unsafe {
         core::arch::asm!(
             "ecall",
@@ -236,6 +269,21 @@ pub fn return_memory(
             inlateout("a7") a7 => _,
         )
     };
+    #[cfg(target_arch = "arm")]
+    unsafe {
+        core::arch::asm!(
+            "svc 0",
+            inlateout("r0") a0 => result,
+            inlateout("r1") a1 => error,
+            inlateout("r2") memory.as_ptr() => _,
+            inlateout("r3") memory.len()=> _,
+            inlateout("r4") arg1 => _,
+            inlateout("r5") arg2 => _,
+            // inlateout("r6") a6 => _,
+            inlateout("r7") a7 => _,
+        )
+    };
+
     if result == SyscallResult::MemoryReturned as usize {
         Ok(())
     } else {
@@ -257,6 +305,7 @@ pub fn return_scalar(message_id: MessageId, args: [usize; 5]) -> Result<(), usiz
     let mut result: usize;
     let mut error: usize;
 
+    #[cfg(target_arch = "riscv32")]
     unsafe {
         core::arch::asm!(
             "ecall",
@@ -268,6 +317,20 @@ pub fn return_scalar(message_id: MessageId, args: [usize; 5]) -> Result<(), usiz
             inlateout("a5") a5 => _,
             inlateout("a6") a6 => _,
             inlateout("a7") a7 => _,
+        )
+    };
+    #[cfg(target_arch = "arm")]
+    unsafe {
+        core::arch::asm!(
+            "svc 0",
+            inlateout("r0") a0 => result,
+            inlateout("r1") a1 => error,
+            inlateout("r2") a2 => _,
+            inlateout("r3") a3 => _,
+            inlateout("r4") a4 => _,
+            inlateout("r5") a5 => _,
+            // inlateout("r6") a6 => _,
+            inlateout("r7") a7 => _,
         )
     };
     if result == SyscallResult::Ok as usize {
@@ -291,6 +354,7 @@ pub fn connect(address: ServerAddress) -> Result<Connection, usize> {
     let mut result: usize;
     let mut value: usize;
 
+    #[cfg(target_arch = "riscv32")]
     unsafe {
         core::arch::asm!(
             "ecall",
@@ -302,6 +366,20 @@ pub fn connect(address: ServerAddress) -> Result<Connection, usize> {
             inlateout("a5") a5 => _,
             inlateout("a6") a6 => _,
             inlateout("a7") a7 => _,
+        )
+    };
+    #[cfg(target_arch = "arm")]
+    unsafe {
+        core::arch::asm!(
+            "svc 0",
+            inlateout("r0") a0 => result,
+            inlateout("r1") a1 => value,
+            inlateout("r2") a2 => _,
+            inlateout("r3") a3 => _,
+            inlateout("r4") a4 => _,
+            inlateout("r5") a5 => _,
+            // inlateout("r6") a6 => _,
+            inlateout("r7") a7 => _,
         )
     };
     if result == SyscallResult::ConnectionID as usize {
