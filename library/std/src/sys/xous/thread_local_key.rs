@@ -37,7 +37,14 @@ fn tls_ptr_addr() -> usize {
 
 #[cfg(target_arch = "arm")]
 fn tls_ptr_addr() -> usize {
-    0
+    let mut tp: usize;
+    unsafe {
+        asm!(
+            "mrc p15, 0, {}, c13, c0, 2", // See ARM ARM B3.12.46
+            out(reg) tp
+        )
+    }
+    tp
 }
 
 /// Create an area of memory that's unique per thread. This area will
@@ -76,9 +83,35 @@ fn tls_ptr() -> *mut usize {
 
 #[cfg(target_arch = "arm")]
 fn tls_ptr() -> *mut usize {
-    0 as *mut usize // TODO: design and implement.
-}
+    let mut tp = tls_ptr_addr();
 
+    // If the TP register is `0`, then this thread hasn't initialized
+    // its TLS yet. Allocate a new page to store this memory.
+    if tp == 0 {
+        let syscall = xous::SysCall::MapMemory(
+            None,
+            None,
+            xous::MemorySize::new(TLS_MEMORY_SIZE).unwrap(),
+            xous::MemoryFlags::R | xous::MemoryFlags::W,
+        );
+        if let Ok(xous::Result::MemoryRange(mem)) = xous::rsyscall(syscall) {
+            tp = mem.as_ptr() as usize;
+            unsafe {
+                // Key #0 is currently unused.
+                (tp as *mut usize).write_volatile(0);
+
+                // Set the hardware thread pointer
+                asm!(
+                    "mcr p15, 0, {}, c13, c0, 2", // See ARM ARM B3.12.46
+                    in(reg) tp,
+                );
+            }
+        } else {
+            panic!("Unable to allocate memory for thread local storage");
+        }
+    }
+    tp as *mut usize
+}
 /// Allocate a new TLS key. These keys are shared among all threads.
 fn tls_alloc() -> usize {
     TLS_KEY_INDEX.fetch_add(1, SeqCst)
