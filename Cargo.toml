@@ -92,6 +92,10 @@ overflow-checks = false
 # much benefit. This section turns them all to down to have no debuginfo which
 # helps to improve link times a little bit.
 [profile.release.package]
+xous.debug = 1
+xous.opt-level = 1
+std.debug = 1
+std.opt-level = 1
 addr2line.debug = 0
 adler.debug = 0
 gimli.debug = 0
