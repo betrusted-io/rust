@@ -85,7 +85,7 @@ fn tls_ptr() -> *mut usize {
 fn tls_ptr() -> *mut usize {
     let mut tp = tls_ptr_addr();
 
-    // If the TP register is `0`, then this thread hasn't initialized
+    // If the hardware thread pointer register is `0`, then this thread hasn't initialized
     // its TLS yet. Allocate a new page to store this memory.
     if tp == 0 {
         let syscall = xous::SysCall::MapMemory(
@@ -97,14 +97,16 @@ fn tls_ptr() -> *mut usize {
         if let Ok(xous::Result::MemoryRange(mem)) = xous::rsyscall(syscall) {
             tp = mem.as_ptr() as usize;
             unsafe {
-                // Key #0 is currently unused.
-                (tp as *mut usize).write_volatile(0);
-
                 // Set the hardware thread pointer
                 asm!(
                     "mcr p15, 0, {}, c13, c0, 2", // See ARM ARM B3.12.46
                     in(reg) tp,
                 );
+
+                // Key #0 is currently unused.
+                // This access may cause a data abort since the memory may be mapped but not allocated.
+                // The abort handler should handle this by handing out a physical page and returning back here.
+                (tp as *mut usize).write_volatile(0);
             }
         } else {
             panic!("Unable to allocate memory for thread local storage");
