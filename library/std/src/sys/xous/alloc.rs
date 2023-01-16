@@ -49,7 +49,6 @@ mod lock {
             if LOCKED.swap(1, SeqCst) == 0 {
                 return DropLock;
             }
-            xous::syscall::yield_slice();
         }
     }
 
@@ -57,11 +56,6 @@ mod lock {
         fn drop(&mut self) {
             let r = LOCKED.swap(0, SeqCst);
             debug_assert_eq!(r, 1);
-            // this yield_slice() will allow any waiting thread to wake up and
-            // do its thing -- without it, a waiting thread could be starved if
-            // the code continues executing and within the same quanta it grabs
-            // the lock again.
-            xous::syscall::yield_slice();
         }
     }
 }
