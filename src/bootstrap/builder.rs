@@ -1543,11 +1543,11 @@ impl<'a> Builder<'a> {
                 // flesh out rpath support more fully in the future.
                 rustflags.arg("-Zosx-rpath-install-name");
                 Some("-Wl,-rpath,@loader_path/../lib")
-            } else if !target.contains("windows") {
+            } else if target.contains("windows") || target.contains("xous") {
+                None
+            } else {
                 rustflags.arg("-Clink-args=-Wl,-z,origin");
                 Some("-Wl,-rpath,$ORIGIN/../lib")
-            } else {
-                None
             };
             if let Some(rpath) = rpath {
                 rustflags.arg(&format!("-Clink-args={}", rpath));
