@@ -2,7 +2,7 @@
 
 #![stable(feature = "raw_os", since = "1.1.0")]
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "xous")))]
 mod tests;
 
 macro_rules! alias_core_ffi {
