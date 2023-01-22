@@ -800,6 +800,9 @@ impl Build {
             LlvmLibunwind::System => features.push_str(" system-llvm-libunwind"),
             LlvmLibunwind::No => {}
         }
+        if target.contains("xous") {
+            features.push_str(" compiler-builtins-mem");
+        }
         if self.config.backtrace {
             features.push_str(" backtrace");
         }
