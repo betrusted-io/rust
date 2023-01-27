@@ -16,8 +16,6 @@ pub struct Mutex {
     locked: AtomicUsize,
 }
 
-pub type MovableMutex = Mutex;
-
 impl Mutex {
     pub const fn new() -> Mutex {
         Mutex { locked: AtomicUsize::new(0) }

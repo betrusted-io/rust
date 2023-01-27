@@ -5,8 +5,6 @@ pub struct RwLock {
     mode: Cell<isize>,
 }
 
-pub type MovableRwLock = RwLock;
-
 unsafe impl Send for RwLock {}
 unsafe impl Sync for RwLock {} // no threads on this platform
 
