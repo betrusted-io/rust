@@ -52,7 +52,7 @@ fn tls_ptr() -> *mut usize {
             tp = mem.as_ptr() as usize;
             unsafe {
                 // Key #0 is currently unused.
-                (tp as *mut usize).write_volatile(0);
+                core::ptr::from_exposed_addr_mut::<usize>(tp).write_volatile(0);
 
                 // Set the thread's `$tp` register
                 asm!(
@@ -64,7 +64,7 @@ fn tls_ptr() -> *mut usize {
             panic!("Unable to allocate memory for thread local storage");
         }
     }
-    tp as *mut usize
+    core::ptr::from_exposed_addr_mut::<usize>(tp)
 }
 
 /// Allocate a new TLS key. These keys are shared among all threads.
@@ -90,7 +90,7 @@ pub unsafe fn set(key: Key, value: *mut u8) {
 #[inline]
 pub unsafe fn get(key: Key) -> *mut u8 {
     assert!((key < 1022) && (key >= 1));
-    unsafe { tls_ptr().add(key).read_volatile() as *mut u8 }
+    unsafe { core::ptr::from_exposed_addr_mut::<u8>(tls_ptr().add(key).read_volatile()) }
 }
 
 #[inline]
