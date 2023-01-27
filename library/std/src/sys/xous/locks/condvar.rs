@@ -14,8 +14,6 @@ pub struct Condvar {
     index: AtomicUsize,
 }
 
-pub(crate) type MovableCondvar = LazyBox<Condvar>;
-
 impl LazyInit for Condvar {
     fn init() -> Box<Self> {
         let this = Self::new();
@@ -32,7 +30,7 @@ impl Condvar {
         Condvar { counter: AtomicUsize::new(0), index: AtomicUsize::new(0) }
     }
 
-    pub unsafe fn notify_one(&self) {
+    pub fn notify_one(&self) {
         if self.counter.load(SeqCst) > 0 {
             self.counter.fetch_sub(1, SeqCst);
             xous::send_message(
@@ -49,7 +47,7 @@ impl Condvar {
         }
     }
 
-    pub unsafe fn notify_all(&self) {
+    pub fn notify_all(&self) {
         let counter = self.counter.swap(0, SeqCst);
         xous::send_message(
             ticktimer(),
