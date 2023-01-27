@@ -40,7 +40,12 @@ impl<'a> Message<'a> {
         Ok(Message {
             message_id,
             auto_return: true,
-            data: unsafe { core::slice::from_raw_parts_mut(data as *mut u8, len) },
+            data: unsafe {
+                core::slice::from_raw_parts_mut(
+                    core::ptr::from_exposed_addr_mut::<u8>(data),
+                    len,
+                )
+            },
         })
     }
     // Need to figure out how to make the non-mutable version work, since `data`
