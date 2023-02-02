@@ -284,7 +284,7 @@ pub(crate) fn connect(address: ServerAddress) -> Result<Connection, Error> {
 ///
 /// If the server does not exist then None is returned.
 pub(crate) fn try_connect(address: ServerAddress) -> Result<Option<Connection>, Error> {
-    match connect_impl(address, true) {
+    match connect_impl(address, false) {
         Ok(conn) => Ok(Some(conn)),
         Err(Error::ServerNotFound) => Ok(None),
         Err(e) => Err(e),
@@ -354,7 +354,7 @@ pub(crate) fn map_memory<T>(
     virt: Option<core::ptr::NonNull<T>>,
     count: usize,
     flags: MemoryFlags,
-) -> Result<core::ops::Range<*mut T>, Error> {
+) -> Result<&'static mut [T], Error> {
     let mut a0 = Syscall::MapMemory as usize;
     let mut a1 = phys.map(|p| p.as_ptr() as usize).unwrap_or_default();
     let mut a2 = virt.map(|p| p.as_ptr() as usize).unwrap_or_default();
@@ -384,7 +384,7 @@ pub(crate) fn map_memory<T>(
         let start = core::ptr::from_exposed_addr_mut::<T>(a1);
         let len = a2 / core::mem::size_of::<T>();
         let end = unsafe { start.add(len) };
-        Ok(start..end)
+        Ok(unsafe { core::slice::from_raw_parts_mut(start, len) })
     } else if result == SyscallResult::Error as usize {
         Err(a1.into())
     } else {
@@ -393,10 +393,10 @@ pub(crate) fn map_memory<T>(
 }
 
 /// Destroy the given memory, returning it to the compiler.
-pub(crate) fn unmap_memory<T>(range: core::ops::Range<*mut T>) -> Result<(), Error> {
+pub(crate) fn unmap_memory<T>(range: &mut [T]) -> Result<(), Error> {
     let mut a0 = Syscall::UnmapMemory as usize;
-    let mut a1 = range.start as usize;
-    let a2 = (range.end as usize) - (range.start as usize);
+    let mut a1 = range.as_ptr() as usize;
+    let a2 = range.len();
     let a3 = 0;
     let a4 = 0;
     let a5 = 0;
@@ -431,13 +431,10 @@ pub(crate) fn unmap_memory<T>(range: core::ops::Range<*mut T>) -> Result<(), Err
 /// Adjust the memory flags for the given range. This can be used to remove flags
 /// from a given region in order to harden memory access. Note that flags may
 /// only be removed and may never be added.
-pub(crate) fn update_memory_flags<T>(
-    range: &core::ops::Range<*mut T>,
-    new_flags: MemoryFlags,
-) -> Result<(), Error> {
+pub(crate) fn update_memory_flags<T>(range: &mut [T], new_flags: MemoryFlags) -> Result<(), Error> {
     let mut a0 = Syscall::UpdateMemoryFlags as usize;
-    let mut a1 = range.start as usize;
-    let a2 = (range.end as usize) - (range.start as usize);
+    let mut a1 = range.as_ptr() as usize;
+    let a2 = range.len();
     let a3 = new_flags.bits();
     let a4 = 0; // Process ID is currently None
     let a5 = 0;
@@ -472,7 +469,7 @@ pub(crate) fn update_memory_flags<T>(
 /// Create a thread with a given stack and up to four arguments
 pub(crate) fn create_thread(
     start: *mut usize,
-    stack: core::ops::Range<*mut u8>,
+    stack: &[u8],
     arg0: usize,
     arg1: usize,
     arg2: usize,
@@ -480,8 +477,8 @@ pub(crate) fn create_thread(
 ) -> Result<ThreadId, Error> {
     let mut a0 = Syscall::CreateThread as usize;
     let mut a1 = start as usize;
-    let a2 = stack.start as usize;
-    let a3 = (stack.end as usize) - (stack.start as usize);
+    let a2 = stack.as_ptr() as usize;
+    let a3 = stack.len();
     let a4 = arg0;
     let a5 = arg1;
     let a6 = arg2;
@@ -544,6 +541,87 @@ pub(crate) fn join_thread(thread_id: ThreadId) -> Result<usize, Error> {
     } else if result == SyscallResult::Scalar2 as usize {
         Ok(a1)
     } else if result == SyscallResult::Scalar5 as usize {
+        Ok(a1)
+    } else if result == SyscallResult::Error as usize {
+        Err(a1.into())
+    } else {
+        Err(Error::InternalError)
+    }
+}
+
+/// Get the current thread's ID
+pub(crate) fn thread_id() -> Result<ThreadId, Error> {
+    let mut a0 = Syscall::GetThreadId as usize;
+    let mut a1 = 0;
+    let a2 = 0;
+    let a3 = 0;
+    let a4 = 0;
+    let a5 = 0;
+    let a6 = 0;
+    let a7 = 0;
+
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            inlateout("a0") a0,
+            inlateout("a1") a1,
+            inlateout("a2") a2 => _,
+            inlateout("a3") a3 => _,
+            inlateout("a4") a4 => _,
+            inlateout("a5") a5 => _,
+            inlateout("a6") a6 => _,
+            inlateout("a7") a7 => _,
+        )
+    };
+
+    let result = a0;
+
+    if result == SyscallResult::ThreadID as usize {
+        Ok(a1.into())
+    } else if result == SyscallResult::Error as usize {
+        Err(a1.into())
+    } else {
+        Err(Error::InternalError)
+    }
+}
+
+/// Adjust the given `knob` limit to match the new value `new`. The current value must
+/// match the `current` in order for this to take effect.
+///
+/// The new value is returned as a result of this call. If the call fails, then the old
+/// value is returned. In either case, this function returns successfully.
+///
+/// An error is generated if the `knob` is not a valid limit, or if the call
+/// would not succeed.
+pub(crate) fn adjust_limit(knob: Limits, current: usize, new: usize) -> Result<usize, Error> {
+    let mut a0 = Syscall::JoinThread as usize;
+    let mut a1 = knob as usize;
+    let a2 = current;
+    let a3 = new;
+    let a4 = 0;
+    let a5 = 0;
+    let a6 = 0;
+    let a7 = 0;
+
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            inlateout("a0") a0,
+            inlateout("a1") a1,
+            inlateout("a2") a2 => _,
+            inlateout("a3") a3 => _,
+            inlateout("a4") a4 => _,
+            inlateout("a5") a5 => _,
+            inlateout("a6") a6 => _,
+            inlateout("a7") a7 => _,
+        )
+    };
+
+    let result = a0;
+
+    if result == SyscallResult::Scalar2 as usize && a1 == knob as usize {
+        Ok(a2)
+    } else if result == SyscallResult::Scalar5 as usize && a1 == knob as usize {
         Ok(a1)
     } else if result == SyscallResult::Error as usize {
         Err(a1.into())
