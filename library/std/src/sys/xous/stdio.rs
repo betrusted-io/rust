@@ -1,6 +1,4 @@
-use crate::cell::RefCell;
 use crate::io;
-thread_local! { static PANIC_WRITER: RefCell<Option<PanicWriter>> = RefCell::new(None) }
 
 pub struct Stdin;
 pub struct Stdout {}
@@ -52,6 +50,16 @@ impl Stderr {
 
 impl io::Write for Stderr {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        #[repr(align(4096))]
+        struct LendBuffer([u8; 4096]);
+        let mut lend_buffer = LendBuffer([0u8; 4096]);
+        let connection = crate::os::xous::services::log_server();
+        for chunk in buf.chunks(lend_buffer.0.len()) {
+            for (dest, src) in lend_buffer.0.iter_mut().zip(chunk) {
+                *dest = *src;
+            }
+            crate::os::xous::ffi::lend(connection, 1, &lend_buffer.0, 0, chunk.len()).unwrap();
+        }
         Ok(buf.len())
     }
 
@@ -68,8 +76,8 @@ pub fn is_ebadf(_err: &io::Error) -> bool {
 
 #[derive(Copy, Clone)]
 pub struct PanicWriter {
-    conn: crate::os::xous::ffi::Connection,
-    gfx_conn: Option<crate::os::xous::ffi::Connection>,
+    log: crate::os::xous::ffi::Connection,
+    gfx: Option<crate::os::xous::ffi::Connection>,
 }
 
 impl io::Write for PanicWriter {
@@ -79,25 +87,25 @@ impl io::Write for PanicWriter {
             // the number of characters in this message.
             // Ignore errors since we're already panicking.
             crate::os::xous::ffi::try_scalar(
-                self.conn,
+                self.log,
                 crate::os::xous::services::LogScalar::AppendPanicMessage(&c).into(),
             )
             .ok();
         }
 
-        // Serialze the text to the graphics panic handler, only if we were able
+        // Serialize the text to the graphics panic handler, only if we were able
         // to acquire a connection to it. Text length is encoded in the `valid` field,
         // the data itself in the buffer. Typically several messages are require to
         // fully transmit the entire panic message.
-        if let Some(connection) = self.gfx_conn {
-            #[repr(align(4096))]
+        if let Some(gfx) = self.gfx {
+            #[repr(C, align(4096))]
             struct Request([u8; 4096]);
             let mut request = Request([0u8; 4096]);
             for (&s, d) in s.iter().zip(request.0.iter_mut()) {
                 *d = s;
             }
             crate::os::xous::ffi::try_lend(
-                connection,
+                gfx,
                 0, /* AppendPanicText */
                 &request.0,
                 0,
@@ -116,26 +124,38 @@ impl io::Write for PanicWriter {
 }
 
 pub fn panic_output() -> Option<impl io::Write> {
-    PANIC_WRITER.with(|pwr| {
-        if pwr.borrow().is_none() {
-            // Generally this won't fail because every server has already allocated this connection.
-            let conn = crate::os::xous::services::log_server();
+    // Generally this won't fail because every server has already connected, so
+    // this is likely to succeed.
+    let log = crate::os::xous::services::log_server();
 
-            // This is possibly fallible in the case that the connection table is full,
-            // and we can't make the connection to the graphics server. Most servers do not already
-            // have this connection.
-            let gfx_conn = crate::os::xous::services::try_connect("panic-to-screen!");
+    // Send the "We're panicking" message (1000).
+    crate::os::xous::ffi::try_scalar(log, crate::os::xous::services::LogScalar::BeginPanic.into())
+        .ok();
 
-            let pw = PanicWriter { conn, gfx_conn };
+    // This is will fail in the case that the connection table is full, or if the
+    // graphics server is not running. Most servers do not already have this connection.
+    let gfx = crate::os::xous::services::try_connect("panic-to-screen!");
 
-            // Send the "We're panicking" message (1000).
-            crate::os::xous::ffi::scalar(
-                conn,
-                crate::os::xous::services::PanicToScreenScalar::BeginPanic.into(),
-            )
-            .ok();
-            *pwr.borrow_mut() = Some(pw);
-        }
-        *pwr.borrow()
-    })
+    Some(PanicWriter { log, gfx })
+}
+
+#[cfg(all(target_os = "xous", not(test)))]
+extern "Rust" {
+    pub fn debug_print_u8(s: &[u8]) -> usize;
+}
+
+// This function is needed by libunwind. The symbol is named in pre-link args
+// for the target specification, so keep that in sync.
+#[cfg(not(test))]
+#[no_mangle]
+pub unsafe extern "C" fn __rust_print_err(m: *mut u8, s: i32) {
+    if s < 0 {
+        return;
+    }
+    let buf = unsafe { core::slice::from_raw_parts(m as *const u8, s as _) };
+    if let Ok(s) =
+        core::str::from_utf8(&buf[..buf.iter().position(|&b| b == 0).unwrap_or(buf.len())])
+    {
+        unsafe { debug_print_u8(s.as_bytes()) };
+    }
 }
