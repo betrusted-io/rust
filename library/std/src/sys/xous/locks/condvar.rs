@@ -1,14 +1,14 @@
 use super::mutex::Mutex;
 use crate::os::xous::ffi::{blocking_scalar, scalar};
 use crate::os::xous::services::ticktimer_server;
-use crate::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use crate::sync::Mutex as StdMutex;
 use crate::time::Duration;
 
 // The implementation is inspired by Andrew D. Birrell's paper
 // "Implementing Condition Variables with Semaphores"
 
 pub struct Condvar {
-    counter: AtomicUsize,
+    counter: StdMutex<usize>,
 }
 
 unsafe impl Send for Condvar {}
@@ -18,28 +18,38 @@ impl Condvar {
     #[inline]
     #[rustc_const_stable(feature = "const_locks", since = "1.63.0")]
     pub const fn new() -> Condvar {
-        Condvar { counter: AtomicUsize::new(0) }
+        Condvar { counter: StdMutex::new(0) }
     }
 
     pub fn notify_one(&self) {
-        if self.counter.load(SeqCst) > 0 {
-            self.counter.fetch_sub(1, SeqCst);
-            scalar(
-                ticktimer_server(),
-                crate::os::xous::services::TicktimerScalar::NotifyCondition(self.index(), 1).into(),
-            )
-            .expect("failure to send NotifyCondition command");
+        let mut counter = self.counter.lock().unwrap();
+        if *counter <= 0 {
+            return;
+        } else {
+            *counter -= 1;
         }
+        let result = blocking_scalar(
+            ticktimer_server(),
+            crate::os::xous::services::TicktimerScalar::NotifyCondition(self.index(), 1).into(),
+        );
+        drop(counter);
+        result.expect("failure to send NotifyCondition command");
     }
 
     pub fn notify_all(&self) {
-        let counter = self.counter.swap(0, SeqCst);
-        scalar(
+        let mut counter = self.counter.lock().unwrap();
+        if *counter <= 0 {
+            return;
+        }
+        let result = blocking_scalar(
             ticktimer_server(),
-            crate::os::xous::services::TicktimerScalar::NotifyCondition(self.index(), counter)
+            crate::os::xous::services::TicktimerScalar::NotifyCondition(self.index(), *counter)
                 .into(),
-        )
-        .expect("failure to send NotifyCondition command");
+        );
+        *counter = 0;
+        drop(counter);
+
+        result.expect("failure to send NotifyCondition command");
     }
 
     fn index(&self) -> usize {
@@ -47,28 +57,63 @@ impl Condvar {
     }
 
     pub unsafe fn wait(&self, mutex: &Mutex) {
-        self.counter.fetch_add(1, SeqCst);
+        let mut counter = self.counter.lock().unwrap();
+        *counter += 1;
         unsafe { mutex.unlock() };
-        blocking_scalar(
+        drop(counter);
+
+        let result = blocking_scalar(
             ticktimer_server(),
             crate::os::xous::services::TicktimerScalar::WaitForCondition(self.index(), 0).into(),
-        )
-        .expect("Ticktimer: failure to send WaitForCondition command");
+        );
         unsafe { mutex.lock() };
+
+        result.expect("Ticktimer: failure to send WaitForCondition command");
     }
 
     pub unsafe fn wait_timeout(&self, mutex: &Mutex, dur: Duration) -> bool {
-        self.counter.fetch_add(1, SeqCst);
+        let mut counter = self.counter.lock().unwrap();
+        *counter += 1;
         unsafe { mutex.unlock() };
-        let millis = dur.as_millis() as usize;
+        drop(counter);
+
+        let mut millis = dur.as_millis() as usize;
+        if millis == 0 {
+            millis = 1;
+        }
+
         let result = blocking_scalar(
             ticktimer_server(),
             crate::os::xous::services::TicktimerScalar::WaitForCondition(self.index(), millis)
                 .into(),
-        )
-        .expect("Ticktimer: failure to send WaitForCondition command");
+        );
         unsafe { mutex.lock() };
 
-        result[0] == 0
+        let result = result.expect("Ticktimer: failure to send WaitForCondition command")[0] == 0;
+
+        // If we awoke due to a timeout, decrement the wake count, as that would not have
+        // been done in the `notify()` call.
+        if !result {
+            *self.counter.lock().unwrap() -= 1;
+        }
+        result
+    }
+}
+
+impl Drop for Condvar {
+    fn drop(&mut self) {
+        // let counter = self.counter.lock().unwrap();
+        // if *counter != 0 {
+        //     panic!(
+        //         "Attempted to drop condvar {} while it still had {} items waiting",
+        //         self.index(),
+        //         *counter
+        //     );
+        // }
+        scalar(
+            ticktimer_server(),
+            crate::os::xous::services::TicktimerScalar::FreeCondition(self.index()).into(),
+        )
+        .ok();
     }
 }
