@@ -17,12 +17,16 @@ impl Thread {
     // unsafe: see thread::Builder::spawn_unchecked for safety requirements
     pub unsafe fn new(stack: usize, p: Box<dyn FnOnce()>) -> io::Result<Thread> {
         let p = Box::into_raw(box p);
-        let stack_size = crate::cmp::max(stack, MIN_STACK_SIZE);
+        let mut stack_size = crate::cmp::max(stack, MIN_STACK_SIZE);
+
+        if (stack_size & 4095) != 0 {
+            stack_size = (stack_size + 4095) & !4095;
+        }
 
         // Allocate the whole thing, then divide it up after the fact. This ensures that
         // even if there's a context switch during this function, the whole stack plus
         // guard pages will remain contiguous.
-        let stack_plus_guard_pages: core::ops::Range<*mut u8> = crate::os::xous::ffi::map_memory(
+        let stack_plus_guard_pages: &mut [u8] = crate::os::xous::ffi::map_memory(
             None,
             None,
             stack_size + GUARD_PAGE_SIZE + GUARD_PAGE_SIZE,
@@ -32,34 +36,25 @@ impl Thread {
 
         // No access to this page. Note: Write-only pages are illegal, and will
         // cause an access violation.
-        let guard_page_pre = unsafe {
-            stack_plus_guard_pages.start..stack_plus_guard_pages.start.add(GUARD_PAGE_SIZE)
-        };
-        crate::os::xous::ffi::update_memory_flags(&guard_page_pre, MemoryFlags::W)
-            .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
-
-        // Stack sandwiched between guard pages
-        let stack = unsafe { guard_page_pre.end..guard_page_pre.end.add(stack_size) };
+        crate::os::xous::ffi::update_memory_flags(
+            &mut stack_plus_guard_pages[0..GUARD_PAGE_SIZE],
+            MemoryFlags::W,
+        )
+        .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
         // No access to this page. Note: Write-only pages are illegal, and will
         // cause an access violation.
-        let guard_page_post = unsafe { stack.end..stack.end.add(GUARD_PAGE_SIZE) };
-        crate::os::xous::ffi::update_memory_flags(&guard_page_post, MemoryFlags::W)
-            .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
-
-        // Ensure that the pages are laid out like we expect them.
-        let pre_addr = guard_page_pre.start as usize;
-        let stack_addr = stack.start as usize;
-        let post_addr = guard_page_post.start as usize;
-
-        assert_eq!(pre_addr + GUARD_PAGE_SIZE, stack_addr);
-        assert_eq!(pre_addr + GUARD_PAGE_SIZE + stack_size, post_addr);
+        crate::os::xous::ffi::update_memory_flags(
+            &mut stack_plus_guard_pages[(GUARD_PAGE_SIZE + stack_size)..],
+            MemoryFlags::W,
+        )
+        .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
         let tid = crate::os::xous::ffi::create_thread(
             thread_start as *mut usize,
-            stack,
+            &stack_plus_guard_pages[GUARD_PAGE_SIZE..(stack_size - GUARD_PAGE_SIZE)],
             p as usize,
-            pre_addr,
+            stack_plus_guard_pages.as_ptr() as usize,
             stack_size,
             0,
         )
@@ -67,14 +62,12 @@ impl Thread {
 
         extern "C" fn thread_start(main: *mut usize, guard_page_pre: usize, stack_size: usize) {
             unsafe {
-                // // Next, set up our stack overflow handler which may get triggered if we run
-                // // out of stack.
-                // let _handler = stack_overflow::Handler::new();
                 // Finally, let's run some code.
                 Box::from_raw(main as *mut Box<dyn FnOnce()>)();
             }
 
-            // Destroy TLS, which will free the TLS page
+            // Destroy TLS, which will free the TLS page and call the destructor for
+            // any thread local storage.
             unsafe {
                 crate::sys::thread_local_key::destroy_tls();
             }
@@ -85,9 +78,9 @@ impl Thread {
             unsafe {
                 asm!(
                     "ecall",
-                    in("a0") crate::os::xous::ffi::Syscall::UnmapMemory as usize,
-                    in("a1") mapped_memory_base,
-                    in("a2") mapped_memory_length,
+                    inlateout("a0") crate::os::xous::ffi::Syscall::UnmapMemory as usize => _,
+                    inlateout("a1") mapped_memory_base => _,
+                    inlateout("a2") mapped_memory_length => _,
                     options(nomem, nostack)
                 );
             }
