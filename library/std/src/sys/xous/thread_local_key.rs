@@ -1,11 +1,31 @@
-use crate::mem::ManuallyDrop;
 use crate::ptr;
-use crate::sync::atomic::AtomicPtr;
 use crate::sync::atomic::AtomicUsize;
-use crate::sync::atomic::Ordering::SeqCst;
+use crate::sync::atomic::Ordering;
 use core::arch::asm;
 
 use crate::os::xous::ffi::MemoryFlags;
+
+mod sync_bitset;
+use sync_bitset::{SyncBitset, SYNC_BITSET_INIT};
+
+#[cfg_attr(test, linkage = "available_externally")]
+#[export_name = "_ZN16__rust_internals3std3sys3xous3thread_local_key14TLS_KEY_IN_USEE"]
+static TLS_KEY_IN_USE: SyncBitset = SYNC_BITSET_INIT;
+macro_rules! dup {
+    ((* $($exp:tt)*) $($val:tt)*) => (dup!( ($($exp)*) $($val)* $($val)* ));
+    (() $($val:tt)*) => ([$($val),*])
+}
+#[cfg_attr(test, linkage = "available_externally")]
+#[export_name = "_ZN16__rust_internals3std3sys3xous3thread_local_key14TLS_DESTRUCTORE"]
+static TLS_DESTRUCTOR: [AtomicUsize; TLS_KEYS] = dup!((* * * * * * *) (AtomicUsize::new(0)));
+
+#[cfg(target_pointer_width = "64")]
+const USIZE_BITS: usize = 64;
+#[cfg(target_pointer_width = "32")]
+const USIZE_BITS: usize = 32;
+
+const TLS_KEYS: usize = 128; // Same as POSIX minimum
+const TLS_KEYS_BITSET_SIZE: usize = (TLS_KEYS + (USIZE_BITS - 1)) / USIZE_BITS;
 
 /// Thread Local Storage
 /// Currently, we are limited to 1023 TLS entries. The entries
@@ -22,10 +42,7 @@ pub type Dtor = unsafe extern "C" fn(*mut u8);
 
 const TLS_MEMORY_SIZE: usize = 4096;
 
-/// TLS keys start at `1` to mimic POSIX.
-static TLS_KEY_INDEX: AtomicUsize = AtomicUsize::new(1);
-
-fn tls_ptr_addr() -> *mut usize {
+fn tls_ptr_addr() -> *mut *mut u8 {
     let mut tp: usize;
     unsafe {
         asm!(
@@ -33,30 +50,32 @@ fn tls_ptr_addr() -> *mut usize {
             out(reg) tp,
         );
     }
-    core::ptr::from_exposed_addr_mut::<usize>(tp)
+    core::ptr::from_exposed_addr_mut::<*mut u8>(tp)
 }
 
 /// Create an area of memory that's unique per thread. This area will
 /// contain all thread local pointers.
-fn tls_ptr() -> *mut usize {
+fn tls_ptr() -> *mut *mut u8 {
     let mut tp = tls_ptr_addr();
 
     // If the TP register is `0`, then this thread hasn't initialized
     // its TLS yet. Allocate a new page to store this memory.
     if tp.is_null() {
-        tp = crate::os::xous::ffi::map_memory(
+        let tp_range: &mut [*mut *mut u8] = crate::os::xous::ffi::map_memory(
             None,
             None,
             TLS_MEMORY_SIZE / core::mem::size_of::<usize>(),
             MemoryFlags::R | MemoryFlags::W,
         )
-        .expect("Unable to allocate memory for thread local storage")
-        .start;
+        .expect("Unable to allocate memory for thread local storage");
+
+        for element in tp_range.iter() {
+            assert!(element.is_null());
+        }
+
+        tp = tp_range.as_mut_ptr() as *mut *mut u8;
 
         unsafe {
-            // Key #0 is currently unused.
-            (tp).write_volatile(0);
-
             // Set the thread's `$tp` register
             asm!(
                 "mv tp, {}",
@@ -67,82 +86,40 @@ fn tls_ptr() -> *mut usize {
     tp
 }
 
-/// Allocate a new TLS key. These keys are shared among all threads.
-fn tls_alloc() -> usize {
-    TLS_KEY_INDEX.fetch_add(1, SeqCst)
+#[repr(C)]
+pub struct Tls {
+    data: [core::cell::Cell<*mut u8>; TLS_KEYS],
+}
+
+unsafe fn current<'a>() -> &'a Tls {
+    // FIXME: Needs safety information. See entry.S for `set_tls_ptr` definition.
+    unsafe { &*(tls_ptr() as *const Tls) }
 }
 
 #[inline]
 pub unsafe fn create(dtor: Option<Dtor>) -> Key {
-    let key = tls_alloc();
-    if let Some(f) = dtor {
-        unsafe { register_dtor(key, f) };
-    }
-    key
+    let index =
+        if let Some(index) = TLS_KEY_IN_USE.set() { index } else { rtabort!("TLS limit exceeded") };
+    TLS_DESTRUCTOR[index].store(dtor.map_or(0, |f| f as usize), Ordering::Relaxed);
+    unsafe { current() }.data[index].set(ptr::null_mut());
+    index
 }
 
 #[inline]
 pub unsafe fn set(key: Key, value: *mut u8) {
-    assert!((key < 1022) && (key >= 1));
-    unsafe { tls_ptr().add(key).write_volatile(value as usize) };
+    rtassert!(TLS_KEY_IN_USE.get(key));
+    unsafe { current() }.data[key].set(value);
 }
 
 #[inline]
 pub unsafe fn get(key: Key) -> *mut u8 {
-    assert!((key < 1022) && (key >= 1));
-    core::ptr::from_exposed_addr_mut::<u8>(unsafe { tls_ptr().add(key).read_volatile() })
+    rtassert!(TLS_KEY_IN_USE.get(key));
+    unsafe { current() }.data[key].get()
 }
 
 #[inline]
-pub unsafe fn destroy(_key: Key) {
-    panic!("can't destroy keys on Xous");
-}
-
-// -------------------------------------------------------------------------
-// Dtor registration (stolen from Windows)
-//
-// Xous has no native support for running destructors so we manage our own
-// list of destructors to keep track of how to destroy keys. We then install a
-// callback later to get invoked whenever a thread exits, running all
-// appropriate destructors.
-//
-// Currently unregistration from this list is not supported. A destructor can be
-// registered but cannot be unregistered. There's various simplifying reasons
-// for doing this, the big ones being:
-//
-// 1. Currently we don't even support deallocating TLS keys, so normal operation
-//    doesn't need to deallocate a destructor.
-// 2. There is no point in time where we know we can unregister a destructor
-//    because it could always be getting run by some remote thread.
-//
-// Typically processes have a statically known set of TLS keys which is pretty
-// small, and we'd want to keep this memory alive for the whole process anyway
-// really.
-//
-// Perhaps one day we can fold the `Box` here into a static allocation,
-// expanding the `StaticKey` structure to contain not only a slot for the TLS
-// key but also a slot for the destructor queue on windows. An optimization for
-// another day!
-
-static DTORS: AtomicPtr<Node> = AtomicPtr::new(ptr::null_mut());
-
-struct Node {
-    dtor: Dtor,
-    key: Key,
-    next: *mut Node,
-}
-
-unsafe fn register_dtor(key: Key, dtor: Dtor) {
-    let mut node = ManuallyDrop::new(Box::new(Node { key, dtor, next: ptr::null_mut() }));
-
-    let mut head = DTORS.load(SeqCst);
-    loop {
-        node.next = head;
-        match DTORS.compare_exchange(head, &mut **node, SeqCst, SeqCst) {
-            Ok(_) => return, // nothing to drop, we successfully added the node to the list
-            Err(cur) => head = cur,
-        }
-    }
+pub unsafe fn destroy(key: Key) {
+    TLS_KEY_IN_USE.clear(key);
 }
 
 pub unsafe fn destroy_tls() {
@@ -155,28 +132,30 @@ pub unsafe fn destroy_tls() {
     unsafe { run_dtors() };
 
     // Finally, free the TLS array
-    let tp_end = unsafe { tp.add(TLS_MEMORY_SIZE / core::mem::size_of::<usize>()) };
-    crate::os::xous::ffi::unmap_memory(tp..tp_end).unwrap();
+    let tp = tp as *mut Tls as *mut usize;
+    crate::os::xous::ffi::unmap_memory(unsafe {
+        core::slice::from_raw_parts_mut(tp, TLS_MEMORY_SIZE / core::mem::size_of::<usize>())
+    })
+    .unwrap();
 }
 
 unsafe fn run_dtors() {
-    let mut any_run = true;
-    for _ in 0..5 {
-        if !any_run {
-            break;
-        }
-        any_run = false;
-        let mut cur = DTORS.load(SeqCst);
-        while !cur.is_null() {
-            let ptr = unsafe { get((*cur).key) };
+    let tls = unsafe { current() };
+    let value_with_destructor = |key: usize| {
+        let ptr = TLS_DESTRUCTOR[key].load(Ordering::Relaxed);
+        unsafe { core::mem::transmute::<_, Option<unsafe extern "C" fn(*mut u8)>>(ptr) }
+            .map(|dtor| (&tls.data[key], dtor))
+    };
 
-            if !ptr.is_null() {
-                unsafe { set((*cur).key, ptr::null_mut()) };
-                unsafe { ((*cur).dtor)(ptr as *mut _) };
-                any_run = true;
+    let mut any_non_null_dtor = true;
+    while any_non_null_dtor {
+        any_non_null_dtor = false;
+        for (value, dtor) in TLS_KEY_IN_USE.iter().filter_map(&value_with_destructor) {
+            let value = value.replace(ptr::null_mut());
+            if !value.is_null() {
+                any_non_null_dtor = true;
+                unsafe { dtor(value) }
             }
-
-            unsafe { cur = (*cur).next };
         }
     }
 }
