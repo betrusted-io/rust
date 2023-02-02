@@ -1,6 +1,6 @@
 use crate::os::xous::ffi::{blocking_scalar, do_yield, scalar};
 use crate::os::xous::services::ticktimer_server;
-use crate::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use crate::sync::atomic::{AtomicBool, AtomicUsize, Ordering::Relaxed, Ordering::SeqCst};
 
 pub struct Mutex {
     /// The "locked" value indicates how many threads are waiting on this
@@ -14,13 +14,22 @@ pub struct Mutex {
     /// spinning, these locks send a Message to the ticktimer server
     /// requesting that they be woken up when a lock is unlocked.
     locked: AtomicUsize,
+
+    /// Whether this Mutex ever was contended, and therefore made a trip
+    /// to the ticktimer server. If this was never set, then we were never
+    /// on the slow path and can skip deregistering the mutex.
+    contended: AtomicBool,
 }
 
 impl Mutex {
     #[inline]
     #[rustc_const_stable(feature = "const_locks", since = "1.63.0")]
     pub const fn new() -> Mutex {
-        Mutex { locked: AtomicUsize::new(0) }
+        Mutex { locked: AtomicUsize::new(0), contended: AtomicBool::new(false) }
+    }
+
+    fn index(&self) -> usize {
+        self as *const Mutex as usize
     }
 
     #[inline]
@@ -44,13 +53,15 @@ impl Mutex {
             return;
         }
 
+        // When this mutex is dropped, we will need to deregister it with the server.
+        self.contended.store(true, Relaxed);
+
         // The lock is now "contended". When the lock is released, a Message will get sent to the
         // ticktimer server to wake it up. Note that this may already have happened, so the actual
         // value of `lock` may be anything (0, 1, 2, ...).
         blocking_scalar(
             ticktimer_server(),
-            crate::os::xous::services::TicktimerScalar::LockMutex(self as *const Mutex as usize)
-                .into(),
+            crate::os::xous::services::TicktimerScalar::LockMutex(self.index()).into(),
         )
         .expect("failure to send LockMutex command");
     }
@@ -74,8 +85,7 @@ impl Mutex {
         // Unblock one thread that is waiting on this message.
         scalar(
             ticktimer_server(),
-            crate::os::xous::services::TicktimerScalar::UnlockMutex(self as *const Mutex as usize)
-                .into(),
+            crate::os::xous::services::TicktimerScalar::UnlockMutex(self.index()).into(),
         )
         .expect("failure to send UnlockMutex command");
     }
@@ -88,5 +98,19 @@ impl Mutex {
     #[inline]
     pub unsafe fn try_lock_or_poison(&self) -> bool {
         self.locked.fetch_add(1, SeqCst) == 0
+    }
+}
+
+impl Drop for Mutex {
+    fn drop(&mut self) {
+        // If there was Mutex contention, then we involved the ticktimer. Free
+        // the resources associated with this Mutex as it is deallocated.
+        if self.contended.load(Relaxed) {
+            scalar(
+                ticktimer_server(),
+                crate::os::xous::services::TicktimerScalar::FreeMutex(self.index()).into(),
+            )
+            .ok();
+        }
     }
 }
