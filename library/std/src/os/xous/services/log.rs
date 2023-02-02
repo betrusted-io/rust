@@ -17,12 +17,18 @@ fn group_or_null(data: &[u8], offset: usize) -> usize {
 }
 
 pub(crate) enum LogScalar<'a> {
+    /// A panic occurred, and a panic log is forthcoming
+    BeginPanic,
+
+    /// Some number of bytes will be appended to the log message
     AppendPanicMessage(&'a [u8]),
 }
 
 impl<'a> Into<[usize; 5]> for LogScalar<'a> {
     fn into(self) -> [usize; 5] {
         match self {
+            LogScalar::BeginPanic => [1000, 0, 0, 0, 0],
+
             LogScalar::AppendPanicMessage(c) =>
             // Text is grouped into 4x `usize` words. The id is 1100 plus
             // the number of characters in this message.
