@@ -7,31 +7,83 @@ use crate::marker::PhantomData;
 use crate::path::{self, PathBuf};
 
 #[cfg(not(test))]
-extern "C" {
-    fn main() -> u32;
-}
+mod c_compat {
+    extern "C" {
+        fn main() -> u32;
+    }
 
-#[cfg(not(test))]
-#[no_mangle]
-pub extern "C" fn _start() {
-    crate::os::xous::ffi::exit(unsafe { main() });
-}
+    #[no_mangle]
+    pub extern "C" fn abort() {}
 
-// This function is needed by the panic runtime. The symbol is named in
-// pre-link args for the target specification, so keep that in sync.
-#[cfg(not(test))]
-#[no_mangle]
-// NB. used by both libunwind and libpanic_abort
-pub extern "C" fn __rust_abort() -> ! {
-    crate::os::xous::ffi::exit(101);
+    // Used in debugging
+
+    #[no_mangle]
+    pub fn debug_print_u8(s: &[u8]) -> usize {
+        #[repr(align(4096))]
+        struct LendBuffer([u8; 4096]);
+        let mut lend_buffer = LendBuffer([0u8; 4096]);
+        let connection = crate::os::xous::services::log_server();
+        for chunk in s.chunks(lend_buffer.0.len()) {
+            for (dest, src) in lend_buffer.0.iter_mut().zip(chunk) {
+                *dest = *src;
+            }
+            crate::os::xous::ffi::lend(connection, 1, &lend_buffer.0, 0, chunk.len()).unwrap();
+        }
+        s.len()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn _start() {
+        #[no_mangle]
+        #[used]
+        pub static IMAGE_BASE: usize = 0;
+
+        #[no_mangle]
+        // #[used]
+        pub static mut EH_FRM_HDR_OFFSET: usize = 0x074f_72a8;
+
+        #[no_mangle]
+        // #[used]
+        pub static EH_FRM_HDR_LEN: usize = 0xd15f_027a;
+
+        #[no_mangle]
+        // #[used]
+        pub static mut EH_FRM_OFFSET: usize = 0x138f_dc0e;
+
+        #[no_mangle]
+        // #[used]
+        pub static EH_FRM_LEN: usize = 0x8e41_1040;
+
+        unsafe { EH_FRM_OFFSET = EH_FRM_OFFSET.wrapping_sub(&IMAGE_BASE as *const usize as usize) };
+        unsafe {
+            EH_FRM_HDR_OFFSET = EH_FRM_HDR_OFFSET.wrapping_sub(&IMAGE_BASE as *const usize as usize)
+        };
+
+        if cfg!(test) {
+            // Adjust the memory limit to give us 4 MB of heap for tests
+            use crate::os::xous::ffi::{adjust_limit, Limits::HeapMaximum};
+            let current_heap_maximum = adjust_limit(HeapMaximum, 0, 0).unwrap();
+            adjust_limit(HeapMaximum, current_heap_maximum, 1024 * 1024 * 4).unwrap();
+        }
+
+        crate::os::xous::ffi::exit(unsafe { main() });
+    }
+
+    // This function is needed by the panic runtime. The symbol is named in
+    // pre-link args for the target specification, so keep that in sync.
+    #[no_mangle]
+    // NB. used by both libunwind and libpanic_abort
+    pub extern "C" fn __rust_abort() -> ! {
+        crate::os::xous::ffi::exit(101);
+    }
 }
 
 pub fn errno() -> i32 {
     0
 }
 
-pub fn error_string(_errno: i32) -> String {
-    "operation successful".to_string()
+pub fn error_string(errno: i32) -> String {
+    core::convert::Into::<crate::os::xous::ffi::Error>::into(errno).to_string()
 }
 
 pub fn getcwd() -> io::Result<PathBuf> {
