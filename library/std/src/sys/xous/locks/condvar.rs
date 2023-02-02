@@ -102,14 +102,6 @@ impl Condvar {
 
 impl Drop for Condvar {
     fn drop(&mut self) {
-        // let counter = self.counter.lock().unwrap();
-        // if *counter != 0 {
-        //     panic!(
-        //         "Attempted to drop condvar {} while it still had {} items waiting",
-        //         self.index(),
-        //         *counter
-        //     );
-        // }
         scalar(
             ticktimer_server(),
             crate::os::xous::services::TicktimerScalar::FreeCondition(self.index()).into(),
