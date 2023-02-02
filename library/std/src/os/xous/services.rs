@@ -4,9 +4,6 @@ use core::sync::atomic::{AtomicU32, Ordering};
 mod log;
 pub(crate) use log::*;
 
-mod panic_to_screen;
-pub(crate) use panic_to_screen::*;
-
 mod ticktimer;
 pub(crate) use ticktimer::*;
 
@@ -56,17 +53,16 @@ mod ns {
         } else {
             7 /* TryConnect */
         };
-        lend_mut(
-            super::name_server(),
-            opcode,
-            &mut request.data,
-            0,
-            name.len().min(NAME_MAX_LENGTH),
-        )
-        .expect("unable to perform lookup");
 
+        let cid = if blocking { super::name_server() } else { super::try_name_server()? };
+
+        lend_mut(cid, opcode, &mut request.data, 0, name.len().min(NAME_MAX_LENGTH))
+            .expect("unable to perform lookup");
+
+        // Read the result code back from the nameserver
         let result = u32::from_le_bytes(request.data[0..4].try_into().unwrap());
         if result == 0 {
+            // If the result was successful, then the CID is stored in the next 4 bytes
             Some(u32::from_le_bytes(request.data[4..8].try_into().unwrap()).into())
         } else {
             None
@@ -104,13 +100,13 @@ pub fn try_connect(name: &str) -> Option<Connection> {
     ns::try_connect_with_name(name)
 }
 
+static NAME_SERVER_CONNECTION: AtomicU32 = AtomicU32::new(0);
+
 /// Return a `Connection` to the name server. If the name server has not been started,
 /// then this call will block until the name server has been started. The `Connection`
 /// will be shared among all connections in a process, so it is safe to call this
 /// multiple times.
 pub(crate) fn name_server() -> Connection {
-    static NAME_SERVER_CONNECTION: AtomicU32 = AtomicU32::new(0);
-
     let cid = NAME_SERVER_CONNECTION.load(Ordering::Relaxed);
     if cid != 0 {
         return cid.into();
@@ -119,4 +115,19 @@ pub(crate) fn name_server() -> Connection {
     let cid = crate::os::xous::ffi::connect("xous-name-server".try_into().unwrap()).unwrap();
     NAME_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
     cid
+}
+
+fn try_name_server() -> Option<Connection> {
+    let cid = NAME_SERVER_CONNECTION.load(Ordering::Relaxed);
+    if cid != 0 {
+        return Some(cid.into());
+    }
+
+    if let Ok(Some(cid)) = crate::os::xous::ffi::try_connect("xous-name-server".try_into().unwrap())
+    {
+        NAME_SERVER_CONNECTION.store(cid.into(), Ordering::Relaxed);
+        Some(cid)
+    } else {
+        None
+    }
 }
