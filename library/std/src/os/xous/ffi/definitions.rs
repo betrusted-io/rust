@@ -18,7 +18,9 @@ pub enum Syscall {
     TerminateProcess = 22,
     TrySendMessage = 24,
     TryConnect = 25,
+    GetThreadId = 32,
     JoinThread = 36,
+    AdjustProcessLimit = 38,
     ReturnScalar = 40,
 }
 
@@ -108,6 +110,14 @@ impl From<usize> for Error {
             27 => Self::InvalidLimit,
             22 | _ => Self::UnknownError,
         }
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl From<i32> for Error {
+    fn from(src: i32) -> Self {
+        let Ok(src) = core::convert::TryInto::<usize>::try_into(src) else { return Self::UnknownError };
+        src.into()
     }
 }
 
@@ -260,4 +270,12 @@ impl Into<usize> for ThreadId {
     fn into(self) -> usize {
         self.0
     }
+}
+
+#[derive(Copy, Clone)]
+#[repr(usize)]
+/// Limits that can be passed to `AdjustLimit`
+pub(crate) enum Limits {
+    HeapMaximum = 1,
+    HeapSize = 2,
 }
