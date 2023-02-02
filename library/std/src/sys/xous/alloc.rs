@@ -57,11 +57,20 @@ mod lock {
         fn drop(&mut self) {
             let r = LOCKED.swap(0, SeqCst);
             debug_assert_eq!(r, 1);
-            // this yield_slice() will allow any waiting thread to wake up and
-            // do its thing -- without it, a waiting thread could be starved if
-            // the code continues executing and within the same quanta it grabs
-            // the lock again.
-            crate::os::xous::ffi::do_yield();
         }
     }
+}
+
+// The following functions are needed by libunwind. These symbols are named
+// in pre-link args for the target specification, so keep that in sync.
+#[cfg(not(test))]
+#[no_mangle]
+pub unsafe extern "C" fn __rust_c_alloc(size: usize, align: usize) -> *mut u8 {
+    unsafe { crate::alloc::alloc(Layout::from_size_align_unchecked(size, align)) }
+}
+
+#[cfg(not(test))]
+#[no_mangle]
+pub unsafe extern "C" fn __rust_c_dealloc(ptr: *mut u8, size: usize, align: usize) {
+    unsafe { crate::alloc::dealloc(ptr, Layout::from_size_align_unchecked(size, align)) }
 }
