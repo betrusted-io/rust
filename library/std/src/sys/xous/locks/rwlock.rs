@@ -45,7 +45,7 @@ impl RwLock {
         // operation will fail and we will not obtain the lock even if we
         // could potentially keep it.
         let new = current + 1;
-        self.mode.compare_exchange(new, current, SeqCst, SeqCst).is_ok()
+        self.mode.compare_exchange(current, new, SeqCst, SeqCst).is_ok()
     }
 
     #[inline]
@@ -69,4 +69,50 @@ impl RwLock {
     pub unsafe fn write_unlock(&self) {
         assert_eq!(self.mode.compare_exchange(-1, 0, SeqCst, SeqCst), Ok(-1));
     }
+
+    // only used by __rust_rwlock_unlock below
+    #[inline]
+    #[cfg_attr(test, allow(dead_code))]
+    unsafe fn unlock(&self) {
+        match self.mode.load(SeqCst) {
+            0 => 0,
+            x if x > 0 => self.mode.fetch_sub(1, SeqCst),
+            _ => self.mode.fetch_add(1, SeqCst),
+        };
+    }
+}
+
+// The following functions are needed by libunwind. These symbols are named
+// in pre-link args for the target specification, so keep that in sync.
+#[cfg(not(test))]
+const EINVAL: i32 = 22;
+
+#[cfg(not(test))]
+#[no_mangle]
+pub unsafe extern "C" fn __rust_rwlock_rdlock(p: *mut RwLock) -> i32 {
+    if p.is_null() {
+        return EINVAL;
+    }
+    unsafe { (*p).read() };
+    return 0;
+}
+
+#[cfg(not(test))]
+#[no_mangle]
+pub unsafe extern "C" fn __rust_rwlock_wrlock(p: *mut RwLock) -> i32 {
+    if p.is_null() {
+        return EINVAL;
+    }
+    unsafe { (*p).write() };
+    return 0;
+}
+
+#[cfg(not(test))]
+#[no_mangle]
+pub unsafe extern "C" fn __rust_rwlock_unlock(p: *mut RwLock) -> i32 {
+    if p.is_null() {
+        return EINVAL;
+    }
+    unsafe { (*p).unlock() };
+    return 0;
 }
