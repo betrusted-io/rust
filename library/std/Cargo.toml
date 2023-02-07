@@ -39,7 +39,7 @@ rand = "0.7"
 dlmalloc = { version = "0.2.4", features = ['rustc-dep-of-std', 'debug'] }
 
 [target.'cfg(target_os = "xous")'.dependencies]
-xous = { git = "https://github.com/Foundation-Devices/keyOS.git", branch = "arm-keyos", features = ['rustc-dep-of-std'], default-features = false }
+xous = { git = "ssh://git@github.com/Foundation-Devices/keyOS.git", branch = "arm-keyos", features = ['rustc-dep-of-std'], default-features = false }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 fortanix-sgx-abi = { version = "0.5.0", features = ['rustc-dep-of-std'] }

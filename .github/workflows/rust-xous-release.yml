@@ -60,6 +60,10 @@ jobs:
       - name: Patch LLVM for 128-bit support
         run: sed -i '/^#define CRT_HAS_128BIT/d' src/llvm-project/compiler-rt/lib/builtins/int_types.h
 
+      - uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.FD_ORG_SSH }}
+
       - name: Build Rust libstd
         run: |
           export RUST_COMPILER_RT_ROOT=$(pwd)/src/llvm-project/compiler-rt \
