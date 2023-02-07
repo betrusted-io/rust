@@ -78,17 +78,6 @@ name = "core"
 version = "0.0.0"
 
 [[package]]
-name = "dlmalloc"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "203540e710bfadb90e5e29930baf5d10270cec1f43ab34f46f78b147b2de715a"
-dependencies = [
- "compiler_builtins",
- "libc",
- "rustc-std-workspace-core",
-]
-
-[[package]]
 name = "fortanix-sgx-abi"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
