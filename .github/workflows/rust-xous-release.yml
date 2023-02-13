@@ -77,6 +77,7 @@ jobs:
           && cp target/${{ matrix.target }}/release/deps/*.rlib $(rustc --print sysroot)/lib/rustlib/${{ matrix.target }}/lib \
           && (dest=$(pwd) && cd $(rustc --print sysroot) && zip -r ${dest}/${{ matrix.target }}_${{ steps.extract_rust_info.outputs.version }}.zip lib/rustlib/${{ matrix.target }}/)
         env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
           CARGO_PROFILE_RELEASE_DEBUG: 0
           CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: true
           RUSTC_BOOTSTRAP: 1
