@@ -1,4 +1,14 @@
 use crate::io as std_io;
+use core::sync::atomic::{AtomicUsize, Ordering};
+
+#[no_mangle]
+pub static EH_FRAME: AtomicUsize = AtomicUsize::new(0);
+#[no_mangle]
+pub static EH_FRAME_SIZE: AtomicUsize = AtomicUsize::new(0);
+#[no_mangle]
+pub static EH_FRAME_HEADER: AtomicUsize = AtomicUsize::new(0);
+#[no_mangle]
+pub static EH_FRAME_HEADER_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 pub mod memchr {
     pub use core::slice::memchr::{memchr, memrchr};
@@ -9,7 +19,11 @@ extern "C" {
 }
 
 #[no_mangle]
-pub fn _start() {
+pub fn _start(eh_frame: usize, eh_frame_size: usize, eh_frame_header: usize, eh_frame_header_size: usize) {
+    EH_FRAME.store(eh_frame, Ordering::SeqCst);
+    EH_FRAME_SIZE.store(eh_frame_size, Ordering::SeqCst);
+    EH_FRAME_HEADER.store(eh_frame_header, Ordering::SeqCst);
+    EH_FRAME_HEADER_SIZE.store(eh_frame_header_size, Ordering::SeqCst);
     xous::syscall::terminate_process(unsafe { main() });
 }
 
