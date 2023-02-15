@@ -1,9 +1,13 @@
 use crate::io as std_io;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
+#[no_mangle]
 pub static EH_FRAME: AtomicUsize = AtomicUsize::new(0);
+#[no_mangle]
 pub static EH_FRAME_SIZE: AtomicUsize = AtomicUsize::new(0);
+#[no_mangle]
 pub static EH_FRAME_HEADER: AtomicUsize = AtomicUsize::new(0);
+#[no_mangle]
 pub static EH_FRAME_HEADER_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 pub mod memchr {
