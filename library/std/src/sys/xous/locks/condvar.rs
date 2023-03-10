@@ -1,7 +1,7 @@
 use super::mutex::Mutex;
 use crate::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use crate::sys::services::ticktimer;
-use crate::sys_common::lazy_box::{LazyBox, LazyInit};
+use crate::sys_common::lazy_box::LazyInit;
 use crate::time::Duration;
 
 static CONDVAR_INDEX: AtomicUsize = AtomicUsize::new(1);
