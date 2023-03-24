@@ -39,19 +39,15 @@ mod c_compat {
         pub static IMAGE_BASE: usize = 0;
 
         #[no_mangle]
-        // #[used]
         pub static mut EH_FRM_HDR_OFFSET: usize = 0x074f_72a8;
 
         #[no_mangle]
-        // #[used]
         pub static EH_FRM_HDR_LEN: usize = 0xd15f_027a;
 
         #[no_mangle]
-        // #[used]
         pub static mut EH_FRM_OFFSET: usize = 0x138f_dc0e;
 
         #[no_mangle]
-        // #[used]
         pub static EH_FRM_LEN: usize = 0x8e41_1040;
 
         unsafe { EH_FRM_OFFSET = EH_FRM_OFFSET.wrapping_sub(&IMAGE_BASE as *const usize as usize) };

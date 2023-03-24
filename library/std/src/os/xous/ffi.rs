@@ -424,7 +424,8 @@ pub(crate) fn unmap_memory<T>(range: &mut [T]) -> Result<(), Error> {
     } else if result == SyscallResult::Error as usize {
         Err(a1.into())
     } else {
-        Err(Error::InternalError)
+        panic!("Unexpected return value: {}", result);
+        // Err(Error::InternalError)
     }
 }
 
@@ -500,7 +501,7 @@ pub(crate) fn create_thread(
 
     let result = a0;
 
-    if result == SyscallResult::ThreadID as usize {
+    if result == SyscallResult::ThreadId as usize {
         Ok(a1.into())
     } else if result == SyscallResult::Error as usize {
         Err(a1.into())
@@ -576,7 +577,7 @@ pub(crate) fn thread_id() -> Result<ThreadId, Error> {
 
     let result = a0;
 
-    if result == SyscallResult::ThreadID as usize {
+    if result == SyscallResult::ThreadId as usize {
         Ok(a1.into())
     } else if result == SyscallResult::Error as usize {
         Err(a1.into())

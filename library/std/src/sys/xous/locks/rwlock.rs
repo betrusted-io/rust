@@ -33,19 +33,12 @@ impl RwLock {
 
     #[inline]
     pub unsafe fn try_read(&self) -> bool {
-        // Non-atomically determine the current value.
-        let current = self.mode.load(SeqCst);
-
-        // If it's currently locked for writing, then we cannot read.
-        if current < 0 {
-            return false;
-        }
-
         // Attempt to lock. If the `current` value has changed, then this
         // operation will fail and we will not obtain the lock even if we
         // could potentially keep it.
-        let new = current + 1;
-        self.mode.compare_exchange(current, new, SeqCst, SeqCst).is_ok()
+        self.mode
+            .fetch_update(SeqCst, SeqCst, |val| if val < 0 { None } else { Some(val + 1) })
+            .is_ok()
     }
 
     #[inline]
@@ -62,7 +55,7 @@ impl RwLock {
 
     #[inline]
     pub unsafe fn read_unlock(&self) {
-        self.mode.fetch_sub(1, SeqCst);
+        assert!(self.mode.fetch_sub(1, SeqCst) > 0);
     }
 
     #[inline]

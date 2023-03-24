@@ -1,12 +1,15 @@
 use crate::ffi::CStr;
 use crate::io;
 use crate::num::NonZeroUsize;
-use crate::os::xous::ffi::MemoryFlags;
+use crate::os::xous::ffi::{
+    create_thread, join_thread, map_memory, update_memory_flags, MemoryFlags, Syscall::UnmapMemory,
+    ThreadId,
+};
 use crate::time::Duration;
 use core::arch::asm;
 
 pub struct Thread {
-    tid: crate::os::xous::ffi::ThreadId,
+    tid: ThreadId,
 }
 
 pub const DEFAULT_MIN_STACK_SIZE: usize = 131072;
@@ -26,7 +29,7 @@ impl Thread {
         // Allocate the whole thing, then divide it up after the fact. This ensures that
         // even if there's a context switch during this function, the whole stack plus
         // guard pages will remain contiguous.
-        let stack_plus_guard_pages: &mut [u8] = crate::os::xous::ffi::map_memory(
+        let stack_plus_guard_pages: &mut [u8] = map_memory(
             None,
             None,
             stack_size + GUARD_PAGE_SIZE + GUARD_PAGE_SIZE,
@@ -36,23 +39,20 @@ impl Thread {
 
         // No access to this page. Note: Write-only pages are illegal, and will
         // cause an access violation.
-        crate::os::xous::ffi::update_memory_flags(
-            &mut stack_plus_guard_pages[0..GUARD_PAGE_SIZE],
-            MemoryFlags::W,
-        )
-        .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
+        update_memory_flags(&mut stack_plus_guard_pages[0..GUARD_PAGE_SIZE], MemoryFlags::W)
+            .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
         // No access to this page. Note: Write-only pages are illegal, and will
         // cause an access violation.
-        crate::os::xous::ffi::update_memory_flags(
+        update_memory_flags(
             &mut stack_plus_guard_pages[(GUARD_PAGE_SIZE + stack_size)..],
             MemoryFlags::W,
         )
         .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
 
-        let tid = crate::os::xous::ffi::create_thread(
+        let tid = create_thread(
             thread_start as *mut usize,
-            &stack_plus_guard_pages[GUARD_PAGE_SIZE..(stack_size - GUARD_PAGE_SIZE)],
+            &stack_plus_guard_pages[GUARD_PAGE_SIZE..(GUARD_PAGE_SIZE + stack_size)],
             p as usize,
             stack_plus_guard_pages.as_ptr() as usize,
             stack_size,
@@ -62,6 +62,8 @@ impl Thread {
 
         extern "C" fn thread_start(main: *mut usize, guard_page_pre: usize, stack_size: usize) {
             unsafe {
+                asm!("mv tp, x0");
+
                 // Finally, let's run some code.
                 Box::from_raw(main as *mut Box<dyn FnOnce()>)();
             }
@@ -78,7 +80,7 @@ impl Thread {
             unsafe {
                 asm!(
                     "ecall",
-                    inlateout("a0") crate::os::xous::ffi::Syscall::UnmapMemory as usize => _,
+                    inlateout("a0") UnmapMemory as usize => _,
                     inlateout("a1") mapped_memory_base => _,
                     inlateout("a2") mapped_memory_length => _,
                     options(nomem, nostack)
@@ -123,7 +125,7 @@ impl Thread {
     }
 
     pub fn join(self) {
-        crate::os::xous::ffi::join_thread(self.tid).unwrap();
+        join_thread(self.tid).unwrap();
     }
 }
 

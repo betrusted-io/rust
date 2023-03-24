@@ -33,7 +33,7 @@ fn iter() {
     #[cfg(target_pointer_width = "32")]
     test_data([0b0110_1001, 0, 0, 0], &[0, 3, 5, 6]);
     #[cfg(target_pointer_width = "32")]
-    test_data([0x8000_0000, 0x0000_0000, 0x8000_0000, 0x0000_0001], &[63, 64, 127]);
+    test_data([0x0000_0000, 0x8000_0000, 0x0000_0001, 0x8000_0000], &[63, 64, 127]);
 
     #[cfg(target_pointer_width = "64")]
     test_data([0, 0], &[]);
@@ -44,7 +44,7 @@ fn iter() {
 
 #[test]
 fn set_get_clear() {
-    let set = SYNC_BITSET_INIT;
+    let set = unsafe { core::mem::transmute([0usize; TLS_KEYS_BITSET_SIZE]) };
     let key = set.set().unwrap();
     assert!(set.get(key));
     set.clear(key);

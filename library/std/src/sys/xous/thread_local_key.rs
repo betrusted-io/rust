@@ -1,48 +1,37 @@
-use crate::ptr;
-use crate::sync::atomic::AtomicUsize;
-use crate::sync::atomic::Ordering;
+use crate::os::xous::ffi::{map_memory, unmap_memory, MemoryFlags};
 use core::arch::asm;
+use core::cell::Cell;
+use core::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 
-use crate::os::xous::ffi::MemoryFlags;
-
-mod sync_bitset;
-use sync_bitset::{SyncBitset, SYNC_BITSET_INIT};
-
-#[cfg_attr(test, linkage = "available_externally")]
-#[export_name = "_ZN16__rust_internals3std3sys3xous3thread_local_key14TLS_KEY_IN_USEE"]
-static TLS_KEY_IN_USE: SyncBitset = SYNC_BITSET_INIT;
-macro_rules! dup {
-    ((* $($exp:tt)*) $($val:tt)*) => (dup!( ($($exp)*) $($val)* $($val)* ));
-    (() $($val:tt)*) => ([$($val),*])
-}
-#[cfg_attr(test, linkage = "available_externally")]
-#[export_name = "_ZN16__rust_internals3std3sys3xous3thread_local_key14TLS_DESTRUCTORE"]
-static TLS_DESTRUCTOR: [AtomicUsize; TLS_KEYS] = dup!((* * * * * * *) (AtomicUsize::new(0)));
-
-#[cfg(target_pointer_width = "64")]
-const USIZE_BITS: usize = 64;
-#[cfg(target_pointer_width = "32")]
-const USIZE_BITS: usize = 32;
-
-const TLS_KEYS: usize = 128; // Same as POSIX minimum
-const TLS_KEYS_BITSET_SIZE: usize = (TLS_KEYS + (USIZE_BITS - 1)) / USIZE_BITS;
-
-/// Thread Local Storage
-/// Currently, we are limited to 1023 TLS entries. The entries
-/// live in a page of memory that's unique per-process, and is
-/// stored in the `$tp` register. If this register is 0, then
-/// TLS has not been initialized and thread cleanup can be skipped.
-///
-/// The index into this register is the `key`. This key is identical
-/// between all threads, but indexes a different offset within this
-/// pointer.
+const TLS_KEY_COUNT: usize = 128;
+const TLS_MEMORY_SIZE: usize = 4096;
 
 pub type Key = usize;
 pub type Dtor = unsafe extern "C" fn(*mut u8);
 
-const TLS_MEMORY_SIZE: usize = 4096;
+/// Common data that is shared among all threads. This could go into a `gp` regsiter,
+/// but for now we just put it in the data section.
+#[derive(Debug)]
+struct TlsCommon {
+    allocation: [AtomicU8; TLS_KEY_COUNT],
+    destructors: [AtomicUsize; TLS_KEY_COUNT],
+}
 
-fn tls_ptr_addr() -> *mut *mut u8 {
+/// Per-thread storage. The index into `data` is managed by the `keys` entry of
+/// TlsCommon.
+#[repr(C, align(4096))]
+#[derive(Debug)]
+struct Tls {
+    data: [Cell<*mut u8>; TLS_KEY_COUNT],
+    used: [AtomicBool; TLS_KEY_COUNT],
+}
+
+static TLS_COMMON: TlsCommon = TlsCommon {
+    allocation: unsafe { core::mem::transmute([0u8; TLS_KEY_COUNT]) },
+    destructors: unsafe { core::mem::transmute([0usize; TLS_KEY_COUNT]) },
+};
+
+fn tls_ptr_addr() -> *const Tls {
     let mut tp: usize;
     unsafe {
         asm!(
@@ -50,30 +39,25 @@ fn tls_ptr_addr() -> *mut *mut u8 {
             out(reg) tp,
         );
     }
-    core::ptr::from_exposed_addr_mut::<*mut u8>(tp)
+    core::ptr::from_exposed_addr_mut::<Tls>(tp)
 }
 
 /// Create an area of memory that's unique per thread. This area will
 /// contain all thread local pointers.
-fn tls_ptr() -> *mut *mut u8 {
+fn tls_ptr() -> *const Tls {
     let mut tp = tls_ptr_addr();
 
     // If the TP register is `0`, then this thread hasn't initialized
     // its TLS yet. Allocate a new page to store this memory.
     if tp.is_null() {
-        let tp_range: &mut [*mut *mut u8] = crate::os::xous::ffi::map_memory(
-            None,
-            None,
-            TLS_MEMORY_SIZE / core::mem::size_of::<usize>(),
-            MemoryFlags::R | MemoryFlags::W,
-        )
-        .expect("Unable to allocate memory for thread local storage");
+        let tp_range: &mut [u8] =
+            map_memory(None, None, TLS_MEMORY_SIZE, MemoryFlags::R | MemoryFlags::W)
+                .expect("Unable to allocate memory for thread local storage");
 
-        for element in tp_range.iter() {
-            assert!(element.is_null());
-        }
-
-        tp = tp_range.as_mut_ptr() as *mut *mut u8;
+        tp = tp_range.as_mut_ptr() as *const Tls;
+        // unsafe { (tp as *mut usize).write_volatile(0) };
+        let tp_usize = tp as usize;
+        assert!((tp_usize & 0x3ff) == 0);
 
         unsafe {
             // Set the thread's `$tp` register
@@ -86,44 +70,79 @@ fn tls_ptr() -> *mut *mut u8 {
     tp
 }
 
-#[repr(C)]
-pub struct Tls {
-    data: [core::cell::Cell<*mut u8>; TLS_KEYS],
-}
-
-unsafe fn current<'a>() -> &'a Tls {
-    // FIXME: Needs safety information. See entry.S for `set_tls_ptr` definition.
-    unsafe { &*(tls_ptr() as *const Tls) }
+fn current<'a>() -> &'a Tls {
+    unsafe { &*tls_ptr() }
 }
 
 #[inline]
+/// Create a brand-new "Key". A "Key" is a global index into a local array. Keys
+/// are shared among all threads and point to the same index. What's different
+/// is the `$tp` pointer, which gives a different table for each thread.
+///
+/// When a key is created, an optional destructor is passed. This destructor os
+/// added to a table that's the same size as the maximum number of keys.
 pub unsafe fn create(dtor: Option<Dtor>) -> Key {
-    let index =
-        if let Some(index) = TLS_KEY_IN_USE.set() { index } else { rtabort!("TLS limit exceeded") };
-    TLS_DESTRUCTOR[index].store(dtor.map_or(0, |f| f as usize), Ordering::Relaxed);
-    unsafe { current() }.data[index].set(ptr::null_mut());
-    index
+    // Implementation detail: skip key 0
+    for (index, (allocated, destructor)) in
+        TLS_COMMON.allocation.iter().zip(TLS_COMMON.destructors.iter()).enumerate()
+    {
+        // Find an entry in the `allocated` list that is currently 0 and set it to 1,
+        // indicating it's in use. This will keep track of the number of threads that
+        // are using this key, and when it reaches 0 it will be available for use again.
+        if allocated.compare_exchange(0, 1, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+            destructor.store(dtor.map_or(0, |f| f as usize), Ordering::Relaxed);
+            return index + 1;
+        }
+    }
+    rtabort!("TLS limit exceeded: {:x?}", TLS_COMMON);
 }
 
 #[inline]
 pub unsafe fn set(key: Key, value: *mut u8) {
-    rtassert!(TLS_KEY_IN_USE.get(key));
-    unsafe { current() }.data[key].set(value);
+    let index = key - 1;
+    let tls = current();
+
+    // If this is the first access to this key in this thread, increment the
+    // common in-use counter.
+    if !tls.used[index].swap(true, Ordering::Relaxed) {
+        TLS_COMMON.allocation[index].fetch_add(1, Ordering::Relaxed);
+    }
+
+    tls.data[index].set(value);
 }
 
 #[inline]
 pub unsafe fn get(key: Key) -> *mut u8 {
-    rtassert!(TLS_KEY_IN_USE.get(key));
-    unsafe { current() }.data[key].get()
+    let index = key - 1;
+    let tls = current();
+
+    // If this is the first access to this key in this thread, increment the
+    // common in-use counter.
+    if !tls.used[index].swap(true, Ordering::Relaxed) {
+        rtassert!(TLS_COMMON.allocation[index].fetch_add(1, Ordering::Relaxed) != 0);
+    }
+    tls.data[index].get()
 }
 
 #[inline]
 pub unsafe fn destroy(key: Key) {
-    TLS_KEY_IN_USE.clear(key);
+    if key == 0 {
+        return;
+    }
+    let index = key - 1;
+    rtassert!(TLS_COMMON.allocation[index].fetch_sub(1, Ordering::SeqCst) == 1);
 }
+
+static LAST_TP: AtomicUsize = AtomicUsize::new(0);
 
 pub unsafe fn destroy_tls() {
     let tp = tls_ptr_addr();
+    let tp_usize = tp as usize;
+    if tp_usize & 0x3ff != 0 {
+        rtprintpanic!("Something broke!");
+        loop {}
+    }
+    // assert!((tp_usize & 0x3ff) == 0);
 
     // If the pointer address is 0, then this thread has no TLS.
     if tp.is_null() {
@@ -132,30 +151,58 @@ pub unsafe fn destroy_tls() {
     unsafe { run_dtors() };
 
     // Finally, free the TLS array
-    let tp = tp as *mut Tls as *mut usize;
-    crate::os::xous::ffi::unmap_memory(unsafe {
-        core::slice::from_raw_parts_mut(tp, TLS_MEMORY_SIZE / core::mem::size_of::<usize>())
-    })
-    .unwrap();
+    let tp = tp as *mut Tls as *mut u8;
+    let previous_tp = LAST_TP.swap(tp_usize, Ordering::Relaxed);
+    if tp_usize == previous_tp {
+        rtprintpanic!("Tried to destroy_tls() twice with the same TLS! {:08x}", previous_tp);
+        loop {}
+    }
+    if let Err(e) = unmap_memory(unsafe { core::slice::from_raw_parts_mut(tp, TLS_MEMORY_SIZE) }) {
+        panic!("Unable to unmap TP at {:08x}: {:?}", tp as usize, e);
+    }
+
+    unsafe { asm!("mv tp, x0") };
 }
 
 unsafe fn run_dtors() {
-    let tls = unsafe { current() };
-    let value_with_destructor = |key: usize| {
-        let ptr = TLS_DESTRUCTOR[key].load(Ordering::Relaxed);
-        unsafe { core::mem::transmute::<_, Option<unsafe extern "C" fn(*mut u8)>>(ptr) }
-            .map(|dtor| (&tls.data[key], dtor))
-    };
+    let tls = current();
+    for (idx, (((data, in_use), allocation), destructor)) in tls
+        .data
+        .iter()
+        .zip(tls.used.iter())
+        .zip(TLS_COMMON.allocation.iter())
+        .zip(TLS_COMMON.destructors.iter())
+        .enumerate()
+    {
+        // Skip keys that aren't in use by this thread
+        let beforehand = in_use.load(Ordering::Relaxed);
+        if !in_use.swap(false, Ordering::Relaxed) {
+            continue;
+        }
 
-    let mut any_non_null_dtor = true;
-    while any_non_null_dtor {
-        any_non_null_dtor = false;
-        for (value, dtor) in TLS_KEY_IN_USE.iter().filter_map(&value_with_destructor) {
-            let value = value.replace(ptr::null_mut());
-            if !value.is_null() {
-                any_non_null_dtor = true;
-                unsafe { dtor(value) }
+        let data = data.replace(core::ptr::null_mut());
+        if !data.is_null() {
+            let destructor = destructor.load(Ordering::Relaxed);
+            if let Some(destructor) = unsafe {
+                core::mem::transmute::<_, Option<unsafe extern "C" fn(*mut u8)>>(destructor)
+            } {
+                unsafe { destructor(data) };
             }
         }
+
+        // Remove one key from the global in-use pool, panicking if it wasn't
+        // actually in use.
+        if allocation.fetch_sub(1, Ordering::Relaxed) == 0 {
+            rtprintpanic!(
+                "allocation at {:08x} went negative ({:?}) at index {}? {:?} --- {:?}",
+                tls as *const Tls as usize,
+                beforehand,
+                idx,
+                tls,
+                TLS_COMMON
+            );
+            rtassert!(1 == 0);
+        }
+        // rtassert!(allocation.fetch_sub(1, Ordering::Relaxed) != 0);
     }
 }

@@ -35,7 +35,7 @@ pub enum SyscallResult {
     MemoryRange = 3,
     ConnectionID = 7,
     Message = 9,
-    ThreadID = 10,
+    ThreadId = 10,
     Scalar1 = 14,
     Scalar2 = 15,
     MemoryReturned = 18,
@@ -132,7 +132,7 @@ impl core::fmt::Display for Error {
                 Error::BadAlignment => "memory was not properly aligned",
                 Error::BadAddress => "an invalid address was supplied",
                 Error::OutOfMemory => "the process or service has run out of memory",
-                Error::MemoryInUse => "the requested address is already in use",
+                Error::MemoryInUse => "the requested address is in use",
                 Error::InterruptNotFound =>
                     "the requested interrupt does not exist on this platform",
                 Error::InterruptInUse => "the requested interrupt is currently in use",
