@@ -4,6 +4,10 @@ pub struct Stdin;
 pub struct Stdout {}
 pub struct Stderr;
 
+use crate::os::xous::ffi::{lend, try_lend, try_scalar, Connection};
+use crate::os::xous::services::LogScalar;
+use crate::os::xous::services::{log_server, try_connect};
+
 impl Stdin {
     pub const fn new() -> Stdin {
         Stdin
@@ -27,12 +31,12 @@ impl io::Write for Stdout {
         #[repr(align(4096))]
         struct LendBuffer([u8; 4096]);
         let mut lend_buffer = LendBuffer([0u8; 4096]);
-        let connection = crate::os::xous::services::log_server();
+        let connection = log_server();
         for chunk in buf.chunks(lend_buffer.0.len()) {
             for (dest, src) in lend_buffer.0.iter_mut().zip(chunk) {
                 *dest = *src;
             }
-            crate::os::xous::ffi::lend(connection, 1, &lend_buffer.0, 0, chunk.len()).unwrap();
+            lend(connection, 1, &lend_buffer.0, 0, chunk.len()).unwrap();
         }
         Ok(buf.len())
     }
@@ -53,12 +57,12 @@ impl io::Write for Stderr {
         #[repr(align(4096))]
         struct LendBuffer([u8; 4096]);
         let mut lend_buffer = LendBuffer([0u8; 4096]);
-        let connection = crate::os::xous::services::log_server();
+        let connection = log_server();
         for chunk in buf.chunks(lend_buffer.0.len()) {
             for (dest, src) in lend_buffer.0.iter_mut().zip(chunk) {
                 *dest = *src;
             }
-            crate::os::xous::ffi::lend(connection, 1, &lend_buffer.0, 0, chunk.len()).unwrap();
+            lend(connection, 1, &lend_buffer.0, 0, chunk.len()).unwrap();
         }
         Ok(buf.len())
     }
@@ -76,8 +80,8 @@ pub fn is_ebadf(_err: &io::Error) -> bool {
 
 #[derive(Copy, Clone)]
 pub struct PanicWriter {
-    log: crate::os::xous::ffi::Connection,
-    gfx: Option<crate::os::xous::ffi::Connection>,
+    log: Connection,
+    gfx: Option<Connection>,
 }
 
 impl io::Write for PanicWriter {
@@ -86,11 +90,8 @@ impl io::Write for PanicWriter {
             // Text is grouped into 4x `usize` words. The id is 1100 plus
             // the number of characters in this message.
             // Ignore errors since we're already panicking.
-            crate::os::xous::ffi::try_scalar(
-                self.log,
-                crate::os::xous::services::LogScalar::AppendPanicMessage(&c).into(),
-            )
-            .ok();
+            try_scalar(self.log, LogScalar::AppendPanicMessage(&c).into())
+                .ok();
         }
 
         // Serialize the text to the graphics panic handler, only if we were able
@@ -104,7 +105,7 @@ impl io::Write for PanicWriter {
             for (&s, d) in s.iter().zip(request.0.iter_mut()) {
                 *d = s;
             }
-            crate::os::xous::ffi::try_lend(
+            try_lend(
                 gfx,
                 0, /* AppendPanicText */
                 &request.0,
@@ -126,15 +127,14 @@ impl io::Write for PanicWriter {
 pub fn panic_output() -> Option<impl io::Write> {
     // Generally this won't fail because every server has already connected, so
     // this is likely to succeed.
-    let log = crate::os::xous::services::log_server();
+    let log = log_server();
 
     // Send the "We're panicking" message (1000).
-    crate::os::xous::ffi::try_scalar(log, crate::os::xous::services::LogScalar::BeginPanic.into())
-        .ok();
+    try_scalar(log, LogScalar::BeginPanic.into()).ok();
 
     // This is will fail in the case that the connection table is full, or if the
     // graphics server is not running. Most servers do not already have this connection.
-    let gfx = crate::os::xous::services::try_connect("panic-to-screen!");
+    let gfx = try_connect("panic-to-screen!");
 
     Some(PanicWriter { log, gfx })
 }
