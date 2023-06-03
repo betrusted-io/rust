@@ -1,7 +1,7 @@
 use super::super::services;
 use super::*;
 use crate::fmt;
-use crate::io::{self, IoSlice, IoSliceMut};
+use crate::io::{self, BorrowedCursor, IoSlice, IoSliceMut};
 use crate::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, SocketAddrV4, SocketAddrV6};
 use crate::sync::Arc;
 use crate::time::Duration;
@@ -292,6 +292,10 @@ impl TcpStream {
 
     pub fn read_vectored(&self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
         crate::io::default_read_vectored(|b| self.read(b), bufs)
+    }
+
+    pub fn read_buf(&self, cursor: BorrowedCursor<'_>) -> io::Result<()> {
+        crate::io::default_read_buf(|buf| self.read(buf), cursor)
     }
 
     pub fn is_read_vectored(&self) -> bool {
