@@ -44,7 +44,7 @@ jobs:
             -Zbinary-dep-depinfo \
             --release \
             --features "panic-unwind compiler-builtins-c compiler-builtins-mem" \
-            --manifest-path "library/test/Cargo.toml" \
+            --manifest-path "library/sysroot/Cargo.toml" \
           && cp target/riscv32imac-unknown-xous-elf/release/deps/*.rlib $(rustc --print sysroot)/lib/rustlib/riscv32imac-unknown-xous-elf/lib \
           && (dest=$(pwd) && cd $(rustc --print sysroot) && zip -r ${dest}/riscv32imac-unknown-xous_${{ steps.extract_rust_version.outputs.version }}.zip lib/rustlib/riscv32imac-unknown-xous-elf/)
         env:
