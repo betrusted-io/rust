@@ -3,7 +3,7 @@ use alloc::str::FromStr;
 use crate::ffi::OsString;
 use crate::fmt;
 use crate::hash::Hash;
-use crate::io::{self, IoSlice, IoSliceMut, BorrowedCursor, SeekFrom};
+use crate::io::{self, BorrowedCursor, IoSlice, IoSliceMut, SeekFrom};
 use crate::os::xous::ffi::{InvokeType, OsStrExt, Syscall, SyscallResult};
 use crate::path::{Path, PathBuf};
 use crate::sys::time::SystemTime;
@@ -164,13 +164,11 @@ impl DirEntry {
 
     pub fn metadata(&self) -> io::Result<FileAttr> {
         match self.kind {
-            FileType::None | FileType::Unknown => {
-                Err(crate::io::Error::new(
-                    crate::io::ErrorKind::NotFound,
-                    "File or directory does not exist, or is corrupted"
-                ))
-            }
-            _ => Ok(FileAttr { kind: self.kind, len: 0 })
+            FileType::None | FileType::Unknown => Err(crate::io::Error::new(
+                crate::io::ErrorKind::NotFound,
+                "File or directory does not exist, or is corrupted",
+            )),
+            _ => Ok(FileAttr { kind: self.kind, len: 0 }),
         }
     }
 
@@ -712,13 +710,11 @@ pub fn stat(p: &Path) -> io::Result<FileAttr> {
     };
 
     match kind {
-        FileType::None | FileType::Unknown => {
-            Err(crate::io::Error::new(
-                crate::io::ErrorKind::NotFound,
-                "File or directory does not exist, or is corrupted"
-            ))
-        }
-        _ => Ok(FileAttr { kind, len: 0 })
+        FileType::None | FileType::Unknown => Err(crate::io::Error::new(
+            crate::io::ErrorKind::NotFound,
+            "File or directory does not exist, or is corrupted",
+        )),
+        _ => Ok(FileAttr { kind, len: 0 }),
     }
 }
 
