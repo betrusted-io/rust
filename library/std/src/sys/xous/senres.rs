@@ -41,10 +41,7 @@ impl<'a> Message<'a> {
             message_id,
             auto_return: true,
             data: unsafe {
-                core::slice::from_raw_parts_mut(
-                    core::ptr::from_exposed_addr_mut::<u8>(data),
-                    len,
-                )
+                core::slice::from_raw_parts_mut(core::ptr::from_exposed_addr_mut::<u8>(data), len)
             },
         })
     }
