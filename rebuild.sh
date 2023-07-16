@@ -87,7 +87,7 @@ cargo build \
     -Zbinary-dep-depinfo \
     --release \
     --features "panic-unwind compiler-builtins-c compiler-builtins-mem" \
-    --manifest-path "library/test/Cargo.toml" || exit 1
+    --manifest-path "library/sysroot/Cargo.toml" || exit 1
 
 # TODO: Remove duplicates here by comparing it with $previous_libraries
 for new_item in $(ls -1 $src_path/*.rlib)
