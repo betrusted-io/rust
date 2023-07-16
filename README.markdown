@@ -67,7 +67,7 @@ cargo build \
     -Zbinary-dep-depinfo \
     --release \
     --features "panic-unwind backtrace compiler-builtins-c compiler-builtins-mem" \
-    --manifest-path "library/test/Cargo.toml"
+    --manifest-path "library/sysroot/Cargo.toml"
 ```
 
 6. Install the standard library to your new sysroot:
@@ -109,7 +109,7 @@ cargo build `
     -Zbinary-dep-depinfo `
     --release `
     --features "panic-unwind backtrace compiler-builtins-c compiler-builtins-mem" `
-    --manifest-path "library/test/Cargo.toml"
+    --manifest-path "library/sysroot/Cargo.toml"
 New-Item -Type Directory -Path "$env:RUST_TARGET_PATH\lib\rustlib\riscv32imac-unknown-xous-elf\lib"
 Remove-Item "$env:RUST_TARGET_PATH\lib\rustlib\riscv32imac-unknown-xous-elf\lib\*.rlib"
 Copy-Item target\riscv32imac-unknown-xous-elf\release\deps\*.rlib "$env:RUST_TARGET_PATH\lib\rustlib\riscv32imac-unknown-xous-elf\lib"
