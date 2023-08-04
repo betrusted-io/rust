@@ -61,7 +61,7 @@ cp riscv32imac-unknown-xous-elf.json $(rustc --print sysroot)/lib/rustlib/riscv3
 CARGO_PROFILE_RELEASE_DEBUG=0 \
 CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false \
 RUSTC_BOOTSTRAP=1 \
-__CARGO_DEFAULT_LIB_METADATA=stablestd \
+__CARGO_DEFAULT_LIB_METADATA=std \
 cargo build \
     --target riscv32imac-unknown-xous-elf \
     -Zbinary-dep-depinfo \
@@ -102,7 +102,7 @@ Copy-Item riscv32imac-unknown-xous-elf.json $env:RUST_TARGET_PATH
 $env:CARGO_PROFILE_RELEASE_DEBUG=0
 $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="false"
 $env:RUSTC_BOOTSTRAP=1
-$env:__CARGO_DEFAULT_LIB_METADATA="stablestd"
+$env:__CARGO_DEFAULT_LIB_METADATA="std"
 Remove-Item .\target\riscv32imac-unknown-xous-elf\release\deps\*.rlib
 cargo build `
     --target riscv32imac-unknown-xous-elf `
