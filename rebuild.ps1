@@ -31,7 +31,7 @@ $rust_sysroot = $(rustc --print sysroot)
 
 $env:RUST_COMPILER_RT_ROOT = "$(Get-Location)\src\llvm-project\compiler-rt"
 $env:CARGO_PROFILE_RELEASE_DEBUG = 0
-$env:CARGO_PROFILE_RELEASE_OPT_LEVEL = ""
+$env:CARGO_PROFILE_RELEASE_OPT_LEVEL = "3"
 $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS = "true"
 $env:RUSTC_BOOTSTRAP = 1
 $env:RUSTFLAGS = "-Cforce-unwind-tables=yes -Cembed-bitcode=yes"
@@ -58,13 +58,6 @@ elseif (Test-CommandExists riscv64-unknown-elf-gcc) {
 else {
     throw "No C compiler found for riscv"
 }
-
-# Patch llvm's source to not enable `u128` for our platform.
-$line_to_remove = "#define CRT_HAS_128BIT"
-$file_to_patch = ".\src\llvm-project\compiler-rt\lib\builtins\int_types.h"
-(Get-Content $file_to_patch | 
-    Where-Object { $_ -notmatch $line_to_remove }) |
-    Set-Content $file_to_patch
 
 $src_path = ".\target\riscv32imac-unknown-xous-elf\release\deps"
 $dest_path = "$rust_sysroot\lib\rustlib\riscv32imac-unknown-xous-elf"

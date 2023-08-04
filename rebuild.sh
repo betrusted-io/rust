@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # Everything you push to main will do a test build, and let you know if it breaks.
 #
 # Things only get released if you tag it. And the actual build is based on the tag.
@@ -28,8 +28,9 @@ export CARGO_PROFILE_RELEASE_DEBUG=0
 export CARGO_PROFILE_RELEASE_OPT_LEVEL="3"
 export CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="true"
 export RUSTC_BOOTSTRAP=1
-export RUSTFLAGS="-Cforce-unwind-tables=yes -Cembed-bitcode=yes"
-export __CARGO_DEFAULT_LIB_METADATA="stablestd"
+export TARGET=riscv32imac-unknown-xous-elf
+export RUSTFLAGS="-Cforce-unwind-tables=yes -Cembed-bitcode=yes -Csymbol-mangling-version=legacy -Zunstable-options -Zbinary-dep-depinfo"
+export __CARGO_DEFAULT_LIB_METADATA="std"
 
 command_exists() {
     which $1 &> /dev/null && $1 --version 2>&1 > /dev/null
@@ -54,14 +55,8 @@ else
     exit 1
 fi
 
-# Patch llvm's source to not enable `u128` for our platform.
-line_to_remove="define CRT_HAS_128BIT"
-file_to_patch="./src/llvm-project/compiler-rt/lib/builtins/int_types.h"
-sed -e "/$line_to_remove/d" "$file_to_patch" > "$file_to_patch.tmp"
-mv "$file_to_patch.tmp" "$file_to_patch"
-
-src_path="./target/riscv32imac-unknown-xous-elf/release/deps"
-dest_path="$rust_sysroot/lib/rustlib/riscv32imac-unknown-xous-elf"
+src_path="./target/$TARGET/release/deps"
+dest_path="$rust_sysroot/lib/rustlib/$TARGET"
 dest_lib_path="$dest_path/lib"
 # function Get-ItemBaseName {
 #     param ($ItemName)
@@ -83,7 +78,7 @@ rm -f $dest_lib_path/*.rlib
 # previous_libraries=$(ls -1 $src_path/*.rlib)
 
 cargo build \
-    --target riscv32imac-unknown-xous-elf \
+    --target $TARGET \
     -Zbinary-dep-depinfo \
     --release \
     --features "panic-unwind compiler-builtins-c compiler-builtins-mem" \
