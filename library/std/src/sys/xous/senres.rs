@@ -143,7 +143,7 @@ pub trait Senres {
         true
     }
 
-    fn reader(&self, fourcc: [u8; 4]) -> Option<Reader<Self>>
+    fn reader(&self, fourcc: [u8; 4]) -> Option<Reader<'_, Self>>
     where
         Self: core::marker::Sized,
     {
@@ -199,7 +199,7 @@ pub trait Senres {
 pub trait SenresMut: Senres {
     fn as_mut_slice(&mut self) -> &mut [u8];
     fn as_mut_ptr(&mut self) -> *mut u8;
-    fn writer(&mut self, fourcc: [u8; 4]) -> Option<Writer<Self>>
+    fn writer(&mut self, fourcc: [u8; 4]) -> Option<Writer<'_, Self>>
     where
         Self: core::marker::Sized,
     {
@@ -268,17 +268,17 @@ pub struct Reader<'a, Backing: Senres> {
 }
 
 pub trait SenSer<Backing: SenresMut> {
-    fn append_to(&self, senres: &mut Writer<Backing>);
+    fn append_to(&self, senres: &mut Writer<'_, Backing>);
 }
 
 pub trait RecDes<Backing: Senres> {
-    fn try_get_from(senres: &Reader<Backing>) -> Result<Self, ()>
+    fn try_get_from(senres: &Reader<'_, Backing>) -> Result<Self, ()>
     where
         Self: core::marker::Sized;
 }
 
 pub trait RecDesRef<'a, Backing: Senres> {
-    fn try_get_ref_from(senres: &'a Reader<Backing>) -> Result<&'a Self, ()>;
+    fn try_get_ref_from(senres: &'a Reader<'_, Backing>) -> Result<&'a Self, ()>;
 }
 
 impl<const N: usize> Stack<N> {
@@ -372,7 +372,7 @@ impl<'a, Backing: Senres> Reader<'a, Backing> {
 macro_rules! primitive_impl {
     ($SelfT:ty) => {
         impl<Backing: SenresMut> SenSer<Backing> for $SelfT {
-            fn append_to(&self, senres: &mut Writer<Backing>) {
+            fn append_to(&self, senres: &mut Writer<'_, Backing>) {
                 senres.align_to(core::mem::align_of::<Self>());
                 for (src, dest) in self
                     .to_le_bytes()
@@ -386,7 +386,7 @@ macro_rules! primitive_impl {
         }
 
         impl<Backing: Senres> RecDes<Backing> for $SelfT {
-            fn try_get_from(senres: &Reader<Backing>) -> Result<Self, ()> {
+            fn try_get_from(senres: &Reader<'_, Backing>) -> Result<Self, ()> {
                 senres.align_to(core::mem::align_of::<Self>());
                 let my_size = core::mem::size_of::<Self>();
                 let offset = senres.offset.get();
@@ -404,7 +404,7 @@ macro_rules! primitive_impl {
 }
 
 impl<Backing: SenresMut> SenSer<Backing> for bool {
-    fn append_to(&self, senres: &mut Writer<Backing>) {
+    fn append_to(&self, senres: &mut Writer<'_, Backing>) {
         senres.align_to(core::mem::align_of::<Self>());
         senres.backing.as_mut_slice()[senres.offset] = if *self { 1 } else { 0 };
         senres.offset += 1;
@@ -412,7 +412,7 @@ impl<Backing: SenresMut> SenSer<Backing> for bool {
 }
 
 impl<Backing: Senres> RecDes<Backing> for bool {
-    fn try_get_from(senres: &Reader<Backing>) -> Result<Self, ()> {
+    fn try_get_from(senres: &Reader<'_, Backing>) -> Result<Self, ()> {
         senres.align_to(core::mem::align_of::<Self>());
         let my_size = core::mem::size_of::<Self>();
         let offset = senres.offset.get();
@@ -430,7 +430,7 @@ impl<Backing: Senres> RecDes<Backing> for bool {
 }
 
 impl<T: SenSer<Backing>, Backing: SenresMut> SenSer<Backing> for Option<T> {
-    fn append_to(&self, senres: &mut Writer<Backing>) {
+    fn append_to(&self, senres: &mut Writer<'_, Backing>) {
         if let Some(val) = self {
             senres.append(1u8);
             val.append_to(senres);
@@ -441,7 +441,7 @@ impl<T: SenSer<Backing>, Backing: SenresMut> SenSer<Backing> for Option<T> {
 }
 
 impl<T: RecDes<Backing>, Backing: Senres> RecDes<Backing> for Option<T> {
-    fn try_get_from(senres: &Reader<Backing>) -> Result<Self, ()> {
+    fn try_get_from(senres: &Reader<'_, Backing>) -> Result<Self, ()> {
         if senres.offset.get() + 1 > senres.backing.as_slice().len() {
             return Err(());
         }
@@ -470,7 +470,7 @@ primitive_impl! {u64}
 primitive_impl! {i64}
 
 impl<T: SenSer<Backing>, Backing: SenresMut> SenSer<Backing> for &[T] {
-    fn append_to(&self, senres: &mut Writer<Backing>) {
+    fn append_to(&self, senres: &mut Writer<'_, Backing>) {
         senres.append(self.len() as u32);
         for entry in self.iter() {
             entry.append_to(senres)
@@ -479,7 +479,7 @@ impl<T: SenSer<Backing>, Backing: SenresMut> SenSer<Backing> for &[T] {
 }
 
 impl<T: SenSer<Backing>, Backing: SenresMut, const N: usize> SenSer<Backing> for [T; N] {
-    fn append_to(&self, senres: &mut Writer<Backing>) {
+    fn append_to(&self, senres: &mut Writer<'_, Backing>) {
         // senres.append(self.len() as u32);
         senres.align_to(core::mem::align_of::<Self>());
         for entry in self.iter() {
@@ -489,7 +489,7 @@ impl<T: SenSer<Backing>, Backing: SenresMut, const N: usize> SenSer<Backing> for
 }
 
 impl<T: RecDes<Backing>, Backing: Senres, const N: usize> RecDes<Backing> for [T; N] {
-    fn try_get_from(senres: &Reader<Backing>) -> Result<Self, ()> {
+    fn try_get_from(senres: &Reader<'_, Backing>) -> Result<Self, ()> {
         let len = core::mem::size_of::<Self>();
         senres.align_to(core::mem::align_of::<Self>());
         let offset = senres.offset.get();
@@ -514,7 +514,7 @@ impl<T: RecDes<Backing>, Backing: Senres, const N: usize> RecDes<Backing> for [T
 }
 
 impl<Backing: SenresMut> SenSer<Backing> for str {
-    fn append_to(&self, senres: &mut Writer<Backing>) {
+    fn append_to(&self, senres: &mut Writer<'_, Backing>) {
         senres.append(self.len() as u32);
         for (src, dest) in
             self.as_bytes().iter().zip(senres.backing.as_mut_slice()[senres.offset..].iter_mut())
@@ -526,7 +526,7 @@ impl<Backing: SenresMut> SenSer<Backing> for str {
 }
 
 impl<Backing: SenresMut> SenSer<Backing> for &str {
-    fn append_to(&self, senres: &mut Writer<Backing>) {
+    fn append_to(&self, senres: &mut Writer<'_, Backing>) {
         senres.append(self.len() as u32);
         for (src, dest) in
             self.as_bytes().iter().zip(senres.backing.as_mut_slice()[senres.offset..].iter_mut())
@@ -538,7 +538,7 @@ impl<Backing: SenresMut> SenSer<Backing> for &str {
 }
 
 impl<Backing: Senres> RecDes<Backing> for String {
-    fn try_get_from(senres: &Reader<Backing>) -> Result<Self, ()> {
+    fn try_get_from(senres: &Reader<'_, Backing>) -> Result<Self, ()> {
         let len = senres.try_get_from::<u32>()? as usize;
         let offset = senres.offset.get();
         if offset + len > senres.backing.as_slice().len() {
@@ -554,7 +554,7 @@ impl<Backing: Senres> RecDes<Backing> for String {
 }
 
 impl<'a, Backing: Senres> RecDesRef<'a, Backing> for str {
-    fn try_get_ref_from(senres: &'a Reader<Backing>) -> Result<&'a Self, ()> {
+    fn try_get_ref_from(senres: &'a Reader<'_, Backing>) -> Result<&'a Self, ()> {
         let len = senres.try_get_from::<u32>()? as usize;
         let offset = senres.offset.get();
         if offset + len > senres.backing.as_slice().len() {
@@ -570,7 +570,7 @@ impl<'a, Backing: Senres> RecDesRef<'a, Backing> for str {
 }
 
 impl<'a, Backing: Senres, T: RecDes<Backing>> RecDesRef<'a, Backing> for [T] {
-    fn try_get_ref_from(senres: &'a Reader<Backing>) -> Result<&'a Self, ()> {
+    fn try_get_ref_from(senres: &'a Reader<'_, Backing>) -> Result<&'a Self, ()> {
         let len = senres.try_get_from::<u32>()? as usize;
         let offset = senres.offset.get();
         if offset + (len * core::mem::size_of::<T>()) > senres.backing.as_slice().len() {
