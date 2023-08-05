@@ -24,13 +24,15 @@ set -o pipefail
 rust_sysroot=$(rustc --print sysroot)
 
 export RUST_COMPILER_RT_ROOT="$(pwd)/src/llvm-project/compiler-rt"
-export CARGO_PROFILE_RELEASE_DEBUG=0
+export CARGO_PROFILE_RELEASE_DEBUG=2
 export CARGO_PROFILE_RELEASE_OPT_LEVEL="3"
-export CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="true"
+export CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="false"
 export RUSTC_BOOTSTRAP=1
 export TARGET=riscv32imac-unknown-xous-elf
-export RUSTFLAGS="-Cforce-unwind-tables=yes -Cembed-bitcode=yes -Csymbol-mangling-version=legacy -Zunstable-options -Zbinary-dep-depinfo"
-export __CARGO_DEFAULT_LIB_METADATA="std"
+export RUSTFLAGS='-Csymbol-mangling-version=legacy -Zunstable-options -Zmacro-backtrace -Clink-args=-Wl,-z,origin -Clink-args=-Wl,-rpath,$ORIGIN/../lib -Csplit-debuginfo=off -Cprefer-dynamic -Cllvm-args=-import-instr-limit=10 -Zinline-mir -Cembed-bitcode=yes -Clto=off -Cforce-unwind-tables=yes'
+export __CARGO_DEFAULT_LIB_METADATA="stablestd"
+export CFLAGS_riscv32imac_unknown_xous_elf='-ffunction-sections -fdata-sections -fPIC -march=rv32imac -mabi=ilp32 -mcmodel=medany'
+export CXXFLAGS_riscv32imac_unknown_xous_elf='-ffunction-sections -fdata-sections -fPIC -march=rv32imac -mabi=ilp32 -mcmodel=medany'
 
 command_exists() {
     which $1 &> /dev/null && $1 --version 2>&1 > /dev/null
@@ -81,7 +83,7 @@ cargo build \
     --target $TARGET \
     -Zbinary-dep-depinfo \
     --release \
-    --features "panic-unwind compiler-builtins-c compiler-builtins-mem" \
+    --features "panic-unwind llvm-libunwind backtrace compiler-builtins-c compiler-builtins-mem" \
     --manifest-path "library/sysroot/Cargo.toml" || exit 1
 
 # TODO: Remove duplicates here by comparing it with $previous_libraries
