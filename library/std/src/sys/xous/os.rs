@@ -1,9 +1,14 @@
+use crate::collections::HashMap;
 use super::{unsupported, Void};
 use crate::error::Error as StdError;
 use crate::ffi::{OsStr, OsString};
 use crate::fmt;
 use crate::io;
 use crate::path::{self, PathBuf};
+use crate::sync::atomic::{AtomicUsize, Ordering};
+use crate::sync::Mutex;
+use crate::sync::Once;
+use crate::vec;
 
 pub fn errno() -> i32 {
     0
@@ -62,29 +67,46 @@ pub fn current_exe() -> io::Result<PathBuf> {
     unsupported()
 }
 
-pub struct Env(Void);
+static ENV: AtomicUsize = AtomicUsize::new(0);
+static ENV_INIT: Once = Once::new();
+type EnvStore = Mutex<HashMap<OsString, OsString>>;
 
-impl Iterator for Env {
-    type Item = (OsString, OsString);
-    fn next(&mut self) -> Option<(OsString, OsString)> {
-        match self.0 {}
-    }
+fn get_env_store() -> Option<&'static EnvStore> {
+    unsafe { (core::ptr::from_exposed_addr::<EnvStore>(ENV.load(Ordering::Relaxed))).as_ref() }
 }
+
+fn create_env_store() -> &'static EnvStore {
+    ENV_INIT.call_once(|| {
+        ENV.store(Box::into_raw(Box::new(EnvStore::default())) as _, Ordering::Relaxed)
+    });
+    unsafe { &*core::ptr::from_exposed_addr::<EnvStore>(ENV.load(Ordering::Relaxed)) }
+}
+
+pub type Env = vec::IntoIter<(OsString, OsString)>;
 
 pub fn env() -> Env {
-    panic!("not supported on this platform")
+    let clone_to_vec = |map: &HashMap<OsString, OsString>| -> Vec<_> {
+        map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    };
+
+    get_env_store().map(|env| clone_to_vec(&env.lock().unwrap())).unwrap_or_default().into_iter()
 }
 
-pub fn getenv(_: &OsStr) -> Option<OsString> {
-    None
+pub fn getenv(k: &OsStr) -> Option<OsString> {
+    get_env_store().and_then(|s| s.lock().unwrap().get(k).cloned())
 }
 
-pub fn setenv(_: &OsStr, _: &OsStr) -> io::Result<()> {
-    Err(io::Error::new(io::ErrorKind::Other, "cannot set env vars on this platform"))
+pub fn setenv(k: &OsStr, v: &OsStr) -> io::Result<()> {
+    let (k, v) = (k.to_owned(), v.to_owned());
+    create_env_store().lock().unwrap().insert(k, v);
+    Ok(())
 }
 
-pub fn unsetenv(_: &OsStr) -> io::Result<()> {
-    Err(io::Error::new(io::ErrorKind::Other, "cannot unset env vars on this platform"))
+pub fn unsetenv(k: &OsStr) -> io::Result<()> {
+    if let Some(env) = get_env_store() {
+        env.lock().unwrap().remove(k);
+    }
+    Ok(())
 }
 
 pub fn temp_dir() -> PathBuf {
