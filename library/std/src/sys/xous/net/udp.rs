@@ -78,7 +78,7 @@ impl UdpSocket {
         if let Ok(xous::Result::MemoryReturned(_, valid)) = response {
             // The first four bytes should be zero upon success, and will be nonzero
             // for an error.
-            let response = buf.as_slice::<u8>();
+            let response = unsafe { buf.as_slice::<u8>() };
             if response[0] != 0 || valid.is_none() {
                 let errcode = response[1];
                 if errcode == NetError::SocketInUse as u8 {
@@ -297,7 +297,7 @@ impl UdpSocket {
             );
             match response {
                 Ok(xous::Result::MemoryReturned(_, valid)) => {
-                    let response = buf.as_slice::<u8>();
+                    let response = unsafe { buf.as_slice::<u8>() };
                     if response[0] != 0 || valid.is_none() {
                         let errcode = response[1];
                         if errcode == NetError::SocketInUse as u8 {

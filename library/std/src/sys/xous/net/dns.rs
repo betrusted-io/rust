@@ -101,7 +101,7 @@ impl Dns {
         );
         if let Ok(xous::Result::MemoryReturned(_, _)) = response {
             // The first element in the Status message is the result code.
-            let data = buf.as_slice::<u8>();
+            let data = unsafe { buf.as_slice::<u8>() };
 
             if data[0] != 0 {
                 Err(DnsError { code: data[1] })
