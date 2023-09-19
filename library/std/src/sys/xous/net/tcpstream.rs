@@ -104,7 +104,7 @@ impl TcpStream {
         if let Ok(xous::Result::MemoryReturned(_, valid)) = response {
             // The first four bytes should be zero upon success, and will be nonzero
             // for an error.
-            let response = buf.as_slice::<u16>();
+            let response = unsafe { buf.as_slice::<u16>() };
             if response[0] != 0 || valid.is_none() {
                 // errcode is a u8 but stuck in a u16 where the upper byte is invalid. Mask & decode accordingly.
                 let errcode = (response[4] & 0xff) as u8;
@@ -217,7 +217,7 @@ impl TcpStream {
                 }
                 Ok(length)
             } else {
-                let result = range.as_slice::<u32>();
+                let result = unsafe { range.as_slice::<u32>() };
                 if result[0] != 0 {
                     if result[1] == 8 {
                         // timed out
@@ -267,7 +267,7 @@ impl TcpStream {
                 }
                 Ok(length)
             } else {
-                let result = range.as_slice::<u32>();
+                let result = unsafe { range.as_slice::<u32>() };
                 if result[0] != 0 {
                     if result[1] == 8 {
                         // timed out
@@ -329,7 +329,7 @@ impl TcpStream {
         .or(Err(io::const_io_error!(io::ErrorKind::InvalidInput, &"Internal error")))?;
 
         if let xous::Result::MemoryReturned(_offset, _valid) = response {
-            let result = range.as_slice::<u32>();
+            let result = unsafe { range.as_slice::<u32>() };
             if result[0] != 0 {
                 if result[1] == 8 {
                     // timed out
