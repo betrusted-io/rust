@@ -10,6 +10,9 @@ pub(crate) use log::*;
 mod net;
 pub(crate) use net::*;
 
+mod pddb;
+pub(crate) use pddb::*;
+
 mod systime;
 pub(crate) use systime::*;
 
