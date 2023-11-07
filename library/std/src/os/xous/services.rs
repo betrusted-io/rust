@@ -4,6 +4,9 @@ use core::sync::atomic::{AtomicU32, Ordering};
 mod log;
 pub(crate) use log::*;
 
+mod pddb;
+pub(crate) use pddb::*;
+
 mod systime;
 pub(crate) use systime::*;
 
