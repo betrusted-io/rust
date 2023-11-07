@@ -12,7 +12,7 @@ pub mod fs;
 #[path = "../unsupported/io.rs"]
 pub mod io;
 pub mod locks;
-#[path = "../unsupported/net.rs"]
+#[path = "../pal/xous/net/mod.rs"]
 pub mod net;
 pub mod os;
 #[path = "../unix/os_str.rs"]
