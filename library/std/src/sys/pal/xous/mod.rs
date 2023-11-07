@@ -2,7 +2,6 @@
 
 pub mod alloc;
 pub mod args;
-#[path = "../unsupported/env.rs"]
 pub mod env;
 pub mod fs;
 #[path = "../unsupported/io.rs"]
