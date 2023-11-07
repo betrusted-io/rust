@@ -2,7 +2,6 @@
 
 pub mod alloc;
 pub mod args;
-#[path = "../unsupported/env.rs"]
 pub mod env;
 pub mod fs;
 #[path = "../unsupported/io.rs"]
@@ -10,7 +9,6 @@ pub mod io;
 pub mod locks;
 pub mod net;
 pub mod os;
-#[path = "../unix/path.rs"]
 pub mod path;
 #[path = "../unsupported/pipe.rs"]
 pub mod pipe;
