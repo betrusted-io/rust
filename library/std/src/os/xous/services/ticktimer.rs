@@ -16,10 +16,25 @@ impl Into<[usize; 5]> for TicktimerScalar {
     fn into(self) -> [usize; 5] {
         match self {
             TicktimerScalar::ElapsedMs => [0, 0, 0, 0, 0],
+            /*
+            if let Some(scalar) = msg.body.scalar_message_mut() {
+                let ms = scalar.arg1 as i64;
+             */
             TicktimerScalar::SleepMs(msecs) => [1, msecs, 0, 0, 0],
             TicktimerScalar::LockMutex(cookie) => [6, cookie, 0, 0, 0],
             TicktimerScalar::UnlockMutex(cookie) => [7, cookie, 0, 0, 0],
+            /*
+            api::Opcode::WaitForCondition => {
+                let pid = msg.sender.pid();
+                let condvar = scalar.arg1;
+                let timeout = scalar.arg2;
+             */
             TicktimerScalar::WaitForCondition(cookie, timeout_ms) => [8, cookie, timeout_ms, 0, 0],
+            /*
+            api::Opcode::NotifyCondition => {
+                let condvar = scalar.arg1;
+                let mut requested_count: usize = scalar.arg2;
+             */
             TicktimerScalar::NotifyCondition(cookie, count) => [9, cookie, count, 0, 0],
             TicktimerScalar::FreeMutex(cookie) => [10, cookie, 0, 0, 0],
             TicktimerScalar::FreeCondition(cookie) => [11, cookie, 0, 0, 0],

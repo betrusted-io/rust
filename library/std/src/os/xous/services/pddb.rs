@@ -67,14 +67,21 @@ impl<'a> Into<[usize; 5]> for PddbBlockingScalar {
         match self {
             PddbBlockingScalar::SeekKeyStd(fd, from) => {
                 let (a1, a2, a3) = match from {
+                    /*
+                    Opcode::SeekKeyStd => {
+                        let fd = (msg.body.id() >> 16) & 0xffff;
+                        if let Some(scalar) = msg.body.scalar_message() {
+                            let seek_by = (((scalar.arg2 as u32) as u64) << 32) | ((scalar.arg3 as u32) as u64);
+                     */
+                    // arg2 is the MSB, arg3 is the LSB
                     SeekFrom::Start(off) => {
-                        (0, (off as usize & 0xffff_ffff), ((off >> 32) as usize) & 0xffff_ffff)
+                        (0, ((off >> 32) as usize) & 0xffff_ffff, (off as usize & 0xffff_ffff))
                     }
                     SeekFrom::Current(off) => {
-                        (1, (off as usize & 0xffff_ffff), ((off >> 32) as usize) & 0xffff_ffff)
+                        (1, ((off >> 32) as usize) & 0xffff_ffff, (off as usize & 0xffff_ffff))
                     }
                     SeekFrom::End(off) => {
-                        (2, (off as usize & 0xffff_ffff), ((off >> 32) as usize) & 0xffff_ffff)
+                        (2, ((off >> 32) as usize) & 0xffff_ffff, (off as usize & 0xffff_ffff))
                     }
                 };
                 [39 | ((fd as usize) << 16), a1, a2, a3, 0]

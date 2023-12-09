@@ -16,8 +16,13 @@ impl Instant {
     pub fn now() -> Instant {
         let result = blocking_scalar(ticktimer_server(), ElapsedMs.into())
             .expect("failed to request elapsed_ms");
-        let lower = result[0];
-        let upper = result[1];
+        /* if let Some(scalar) = msg.body.scalar_message_mut() {
+              let time = ticktimer.elapsed_ms() as i64;
+              scalar.arg1 = (time & 0xFFFF_FFFFi64) as usize;
+              scalar.arg2 = ((time >> 32) & 0xFFF_FFFFi64) as usize;
+        */
+        let lower = result[0]; // corresponds to ScalarMessage.arg1
+        let upper = result[1]; // corresponds to ScalarMessage.arg2
         Instant { 0: Duration::from_millis(lower as u64 | (upper as u64) << 32) }
     }
 
@@ -38,8 +43,20 @@ impl SystemTime {
     pub fn now() -> SystemTime {
         let result = blocking_scalar(systime_server(), GetUtcTimeMs.into())
             .expect("failed to request utc time in ms");
-        let lower = result[0];
-        let upper = result[1];
+        /*
+            Some(TimeOp::GetUtcTimeMs) => xous::msg_blocking_scalar_unpack!(msg, _, _, _, _, {
+                let t =
+                    start_rtc_secs as i64 * 1000i64
+                    + (tt.elapsed_ms() - start_tt_ms) as i64;
+                log::debug!("hw only UTC ms {}", t);
+                xous::return_scalar2(msg.sender,
+                    (((t as u64) >> 32) & 0xFFFF_FFFF) as usize,
+                    (t as u64 & 0xFFFF_FFFF) as usize,
+                ).expect("couldn't respond to GetUtcTimeMs");
+            }),
+        */
+        let upper = result[0]; // val1
+        let lower = result[1]; // val2
         SystemTime { 0: Duration::from_millis((upper as u64) << 32 | lower as u64) }
     }
 
