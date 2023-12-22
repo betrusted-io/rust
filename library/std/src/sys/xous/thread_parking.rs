@@ -53,25 +53,14 @@ impl Parker {
         // milliseconds to the allowed range.
         let millis = usize::max(timeout.as_millis().try_into().unwrap_or(usize::MAX), 1);
 
-        let was_timeout = blocking_scalar(
+        let _was_timeout = blocking_scalar(
             ticktimer_server(),
             TicktimerScalar::WaitForCondition(self.index(), millis).into(),
         )
         .expect("failed to send WaitForCondition command")[0]
             != 0;
 
-        let state = self.state.swap(EMPTY, Acquire);
-        if was_timeout && state == NOTIFIED {
-            // The state was set to NOTIFIED after we returned from the wait
-            // but before we reset the state. Therefore, a wakeup is on its
-            // way, which we need to consume here.
-            // NOTICE: this is a priority hole.
-            blocking_scalar(
-                ticktimer_server(),
-                TicktimerScalar::WaitForCondition(self.index(), 0).into(),
-            )
-            .expect("failed to send WaitForCondition command");
-        }
+        let _state = self.state.swap(EMPTY, Acquire);
     }
 
     pub fn unpark(self: Pin<&Self>) {
