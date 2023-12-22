@@ -31,6 +31,7 @@ impl Parker {
         if state == NOTIFIED {
             return;
         }
+        assert!(state == NOTIFIED || state == EMPTY);
 
         // The state was set to PARKED. Wait until the `unpark` wakes us up.
         blocking_scalar(
@@ -39,7 +40,8 @@ impl Parker {
         )
         .expect("failed to send WaitForCondition command");
 
-        self.state.swap(EMPTY, Acquire);
+        let new_state = self.state.swap(EMPTY, Acquire);
+        assert!(new_state == PARKED || new_state == EMPTY || new_state == NOTIFIED);
     }
 
     pub unsafe fn park_timeout(self: Pin<&Self>, timeout: Duration) {
@@ -48,41 +50,44 @@ impl Parker {
         if state == NOTIFIED {
             return;
         }
+        assert!(state == NOTIFIED || state == EMPTY);
 
         // A value of zero indicates an indefinite wait. Clamp the number of
         // milliseconds to the allowed range.
         let millis = usize::max(timeout.as_millis().try_into().unwrap_or(usize::MAX), 1);
 
-        let was_timeout = blocking_scalar(
+        let _was_timeout = blocking_scalar(
             ticktimer_server(),
             TicktimerScalar::WaitForCondition(self.index(), millis).into(),
         )
         .expect("failed to send WaitForCondition command")[0]
             != 0;
 
-        let state = self.state.swap(EMPTY, Acquire);
-        if was_timeout && state == NOTIFIED {
-            // The state was set to NOTIFIED after we returned from the wait
-            // but before we reset the state. Therefore, a wakeup is on its
-            // way, which we need to consume here.
-            // NOTICE: this is a priority hole.
-            blocking_scalar(
-                ticktimer_server(),
-                TicktimerScalar::WaitForCondition(self.index(), 0).into(),
-            )
-            .expect("failed to send WaitForCondition command");
-        }
+        let new_state = self.state.swap(EMPTY, Acquire);
+        assert!(new_state == PARKED || new_state == EMPTY || new_state == NOTIFIED);
     }
 
     pub fn unpark(self: Pin<&Self>) {
-        let state = self.state.swap(NOTIFIED, Release);
-        if state == PARKED {
-            // The thread is parked, wake it up.
-            blocking_scalar(
-                ticktimer_server(),
-                TicktimerScalar::NotifyCondition(self.index(), 1).into(),
-            )
-            .expect("failed to send NotifyCondition command");
+        // If the state is `NOTIFIED`, then another thread has notified
+        // the target thread.
+        // If the state is `EMPTY` then there is nothing to wake up.
+        if self.state.swap(NOTIFIED, Release) != PARKED {
+            return;
+        }
+
+        // The thread is parked, wake it up. Keep trying until we wake something up.
+        // This will happen when the `NotifyCondition` call returns the fact that
+        // 1 condition was notified.
+        while blocking_scalar(
+            ticktimer_server(),
+            TicktimerScalar::NotifyCondition(self.index(), 1).into(),
+        )
+        .expect("failed to send NotifyCondition command")[0]
+            == 1
+        {
+            // The target thread hasn't yet hit the `WaitForCondition` call.
+            // Yield to let the target thread run some more.
+            crate::thread::yield_now();
         }
     }
 }
