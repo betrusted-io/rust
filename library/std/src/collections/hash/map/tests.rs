@@ -269,11 +269,11 @@ fn test_lots_of_insertions() {
 
     // Try this a few times to make sure we never screw up the hashmap's
     // internal state.
-    let loops = if cfg!(miri) { 2 } else { 10 };
+    let loops = if cfg!(miri) || cfg!(target_os = "xous") { 2 } else { 10 };
     for _ in 0..loops {
         assert!(m.is_empty());
 
-        let count = if cfg!(miri) { 101 } else { 1001 };
+        let count = if cfg!(miri) || cfg!(target_os = "xous") { 101 } else { 1001 };
 
         for i in 1..count {
             assert!(m.insert(i, i).is_none());

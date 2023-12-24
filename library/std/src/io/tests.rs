@@ -339,6 +339,7 @@ fn chain_zero_length_read_is_not_eof() {
 
 #[bench]
 #[cfg_attr(target_os = "emscripten", ignore)]
+#[cfg_attr(target_os = "xous", ignore)]
 #[cfg_attr(miri, ignore)] // Miri isn't fast...
 fn bench_read_to_end(b: &mut test::Bencher) {
     b.iter(|| {

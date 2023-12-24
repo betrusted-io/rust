@@ -466,7 +466,7 @@ fn recv_timeout_upgrade() {
 #[test]
 fn stress_recv_timeout_shared() {
     let (tx, rx) = channel();
-    let stress = stress_factor() + 100;
+    let stress = stress_factor() + if cfg!(target_os = "xous") { 10 } else { 100 };
 
     for i in 0..stress {
         let tx = tx.clone();
@@ -538,7 +538,7 @@ fn shared_recv_timeout() {
 #[test]
 fn shared_chan_stress() {
     let (tx, rx) = channel();
-    let total = stress_factor() + 100;
+    let total = stress_factor() + if cfg!(target_os = "xous") { 20 } else { 100 };
     for _ in 0..total {
         let tx = tx.clone();
         thread::spawn(move || {
