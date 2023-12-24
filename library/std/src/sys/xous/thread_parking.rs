@@ -31,6 +31,7 @@ impl Parker {
         if state == NOTIFIED {
             return;
         }
+        assert!(state == NOTIFIED || state == EMPTY);
 
         // The state was set to PARKED. Wait until the `unpark` wakes us up.
         blocking_scalar(
@@ -39,7 +40,8 @@ impl Parker {
         )
         .expect("failed to send WaitForCondition command");
 
-        self.state.swap(EMPTY, Acquire);
+        let new_state = self.state.swap(EMPTY, Acquire);
+        assert!(new_state == PARKED || new_state == EMPTY || new_state == NOTIFIED);
     }
 
     pub unsafe fn park_timeout(self: Pin<&Self>, timeout: Duration) {
@@ -48,6 +50,7 @@ impl Parker {
         if state == NOTIFIED {
             return;
         }
+        assert!(state == NOTIFIED || state == EMPTY);
 
         // A value of zero indicates an indefinite wait. Clamp the number of
         // milliseconds to the allowed range.
@@ -60,18 +63,31 @@ impl Parker {
         .expect("failed to send WaitForCondition command")[0]
             != 0;
 
-        let _state = self.state.swap(EMPTY, Acquire);
+        let new_state = self.state.swap(EMPTY, Acquire);
+        assert!(new_state == PARKED || new_state == EMPTY || new_state == NOTIFIED);
     }
 
     pub fn unpark(self: Pin<&Self>) {
-        let state = self.state.swap(NOTIFIED, Release);
-        if state == PARKED {
-            // The thread is parked, wake it up.
-            blocking_scalar(
-                ticktimer_server(),
-                TicktimerScalar::NotifyCondition(self.index(), 1).into(),
-            )
-            .expect("failed to send NotifyCondition command");
+        // If the state is `NOTIFIED`, then another thread has notified
+        // the target thread.
+        // If the state is `EMPTY` then there is nothing to wake up.
+        if self.state.swap(NOTIFIED, Release) != PARKED {
+            return;
+        }
+
+        // The thread is parked, wake it up. Keep trying until we wake something up.
+        // This will happen when the `NotifyCondition` call returns the fact that
+        // 1 condition was notified.
+        while blocking_scalar(
+            ticktimer_server(),
+            TicktimerScalar::NotifyCondition(self.index(), 1).into(),
+        )
+        .expect("failed to send NotifyCondition command")[0]
+            == 1
+        {
+            // The target thread hasn't yet hit the `WaitForCondition` call.
+            // Yield to let the target thread run some more.
+            crate::thread::yield_now();
         }
     }
 }
