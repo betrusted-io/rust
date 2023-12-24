@@ -23,7 +23,8 @@ pub type Dtor = unsafe extern "C" fn(*mut u8);
 
 const TLS_MEMORY_SIZE: usize = 4096;
 
-/// TLS keys start at `1` to mimic POSIX.
+/// TLS keys start at `1` to mimic POSIX. Index 0 is used
+/// to store the destructor address.
 static TLS_KEY_INDEX: AtomicUsize = AtomicUsize::new(1);
 
 fn tls_ptr_addr() -> *mut usize {
@@ -58,7 +59,7 @@ fn tls_ptr() -> *mut usize {
 
         unsafe {
             // Key #0 is currently unused.
-            (tp).write_volatile(0);
+            (tp).write_volatile(core::mem::transmute(run_dtors as unsafe fn() as usize));
 
             // Set the thread's `$tp` register
             asm!(
@@ -70,14 +71,10 @@ fn tls_ptr() -> *mut usize {
     tp
 }
 
-/// Allocate a new TLS key. These keys are shared among all threads.
-fn tls_alloc() -> usize {
-    TLS_KEY_INDEX.fetch_add(1, SeqCst)
-}
-
 #[inline]
 pub unsafe fn create(dtor: Option<Dtor>) -> Key {
-    let key = tls_alloc();
+    // Allocate a new TLS key. These keys are shared among all threads.
+    let key = TLS_KEY_INDEX.fetch_add(1, SeqCst);
     if let Some(f) = dtor {
         unsafe { register_dtor(key, f) };
     }
@@ -98,7 +95,8 @@ pub unsafe fn get(key: Key) -> *mut u8 {
 
 #[inline]
 pub unsafe fn destroy(_key: Key) {
-    panic!("can't destroy keys on Xous");
+    // Just leak the key. Probably not great on long-running systems that create
+    // lots of TLS variables, but in practice that's not an issue.
 }
 
 // -------------------------------------------------------------------------
@@ -155,7 +153,24 @@ pub unsafe fn destroy_tls() {
     if tp.is_null() {
         return;
     }
-    unsafe { run_dtors() };
+
+    // We store the destructor function in the first slot of the thread pointer.
+    // This is done for two reasons.
+    //
+    //   1. Thread pointer 0 is unused, because POSIX uses 0 as a sentinal value.
+    //      So this value would otherwise be wasted.
+    //   2. Sometimes, libstd will be different. This is most obvious when running
+    //      tests. In this case, local symbols such as `TLS_KEY_INDEX` and `DTORS`
+    //      will be different between calls to `create()` and the thread-terminating
+    //      call to `destroy_tls()`. This would result in destructors not getting run.
+    //
+    // To work around point 2, we store a pointer to `run_dtors()` when a key is
+    // created. That way, when `destroy_tls()` is called, even if it's called from
+    // the primary libstd, the destructor function from the libstd that was used
+    // will have its destructor function run so all symbols are correct.
+    let run_dtors = unsafe { tp.read_volatile() };
+    debug_assert_ne!(run_dtors, 0);
+    unsafe { core::mem::transmute::<usize, fn()>(run_dtors)() };
 
     // Finally, free the TLS array
     unsafe {
@@ -169,6 +184,12 @@ pub unsafe fn destroy_tls() {
 
 unsafe fn run_dtors() {
     let mut any_run = true;
+
+    // Run the destructor "some" number of times. This is 5x on Windows,
+    // so we copy it here. This allows TLS variables to create new
+    // TLS variables upon destruction that will also get destroyed.
+    // Keep going until we run out of tries or until we have nothing
+    // left to destroy.
     for _ in 0..5 {
         if !any_run {
             break;
