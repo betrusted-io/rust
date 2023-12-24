@@ -11,8 +11,6 @@ pub mod fs;
 pub mod io;
 pub mod locks;
 pub mod net;
-#[path = "../unsupported/once.rs"]
-pub mod once;
 pub mod os;
 #[path = "../unix/os_str.rs"]
 pub mod os_str;
