@@ -32,7 +32,7 @@ fn instant_monotonic_concurrent() -> crate::thread::Result<()> {
         .map(|_| {
             crate::thread::spawn(|| {
                 let mut old = Instant::now();
-                let count = if cfg!(miri) { 1_000 } else { 5_000_000 };
+                let count = if cfg!(miri) || cfg!(target_os = "xous") { 1_000 } else { 5_000_000 };
                 for _ in 0..count {
                     let new = Instant::now();
                     assert!(new >= old);
