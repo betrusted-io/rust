@@ -274,6 +274,12 @@ impl Into<usize> for ThreadId {
     }
 }
 
+impl core::fmt::Display for ThreadId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(usize)]
 /// Limits that can be passed to `AdjustLimit`
