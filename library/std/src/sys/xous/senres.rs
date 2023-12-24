@@ -1,4 +1,5 @@
 #![allow(unused)]
+#![allow(elided_lifetimes_in_paths)]
 
 use crate::os::xous::ffi::{Connection, InvokeType, Syscall, SyscallResult};
 use core::cell::Cell;
