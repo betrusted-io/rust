@@ -83,7 +83,8 @@ impl Parker {
             TicktimerScalar::NotifyCondition(self.index(), 1).into(),
         )
         .expect("failed to send NotifyCondition command")[0]
-            == 1
+            != 1
+            && self.state.load(Acquire) != EMPTY
         {
             // The target thread hasn't yet hit the `WaitForCondition` call.
             // Yield to let the target thread run some more.
