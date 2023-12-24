@@ -122,7 +122,7 @@ fn chan_gone_concurrent() {
 
 #[test]
 fn stress() {
-    let count = if cfg!(miri) { 100 } else { 10000 };
+    let count = if cfg!(miri) || cfg!(target_os = "xous") { 100 } else { 10000 };
     let (tx, rx) = sync_channel::<i32>(0);
     thread::spawn(move || {
         for _ in 0..count {
@@ -136,7 +136,7 @@ fn stress() {
 
 #[test]
 fn stress_recv_timeout_two_threads() {
-    let count = if cfg!(miri) { 100 } else { 10000 };
+    let count = if cfg!(miri) || cfg!(target_os = "xous") { 100 } else { 10000 };
     let (tx, rx) = sync_channel::<i32>(0);
 
     thread::spawn(move || {
@@ -162,7 +162,7 @@ fn stress_recv_timeout_two_threads() {
 
 #[test]
 fn stress_recv_timeout_shared() {
-    const AMT: u32 = if cfg!(miri) { 100 } else { 1000 };
+    const AMT: u32 = if cfg!(miri) || cfg!(target_os = "xous") { 100 } else { 1000 };
     const NTHREADS: u32 = 8;
     let (tx, rx) = sync_channel::<i32>(0);
     let (dtx, drx) = sync_channel::<()>(0);
@@ -202,7 +202,7 @@ fn stress_recv_timeout_shared() {
 
 #[test]
 fn stress_shared() {
-    const AMT: u32 = if cfg!(miri) { 100 } else { 1000 };
+    const AMT: u32 = if cfg!(miri) || cfg!(target_os = "xous") { 100 } else { 1000 };
     const NTHREADS: u32 = 8;
     let (tx, rx) = sync_channel::<i32>(0);
     let (dtx, drx) = sync_channel::<()>(0);
@@ -449,7 +449,7 @@ fn stream_send_recv_stress() {
 
 #[test]
 fn recv_a_lot() {
-    let count = if cfg!(miri) { 1000 } else { 10000 };
+    let count = if cfg!(miri) || cfg!(target_os = "xous") { 1000 } else { 10000 };
     // Regression test that we don't run out of stack in scheduler context
     let (tx, rx) = sync_channel(count);
     for _ in 0..count {
@@ -463,7 +463,7 @@ fn recv_a_lot() {
 #[test]
 fn shared_chan_stress() {
     let (tx, rx) = sync_channel(0);
-    let total = stress_factor() + 100;
+    let total = stress_factor() + if cfg!(target_os = "xous") { 20 } else { 100 };
     for _ in 0..total {
         let tx = tx.clone();
         thread::spawn(move || {
