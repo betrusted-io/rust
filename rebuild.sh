@@ -26,7 +26,7 @@ rust_sysroot=$(rustc $RUST_TOOLCHAIN --print sysroot)
 export RUST_COMPILER_RT_ROOT="$(pwd)/src/llvm-project/compiler-rt"
 export CARGO_PROFILE_RELEASE_DEBUG=0
 export CARGO_PROFILE_RELEASE_OPT_LEVEL="3"
-export CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="true"
+export CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS="false"
 export RUSTC_BOOTSTRAP=1
 export RUSTFLAGS="-Cforce-unwind-tables=yes -Cembed-bitcode=yes"
 export __CARGO_DEFAULT_LIB_METADATA="stablestd"
