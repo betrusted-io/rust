@@ -11,6 +11,9 @@ cfg_if::cfg_if! {
     ))] {
         mod unsupported_backslash;
         pub use unsupported_backslash::*;
+    } else if #[cfg(target_os = "xous")] {
+        mod xous;
+        pub use xous::*;
     } else {
         mod unix;
         pub use unix::*;
