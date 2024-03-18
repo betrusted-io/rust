@@ -20,21 +20,25 @@ static PARAMS_ADDRESS: AtomicPtr<u8> = AtomicPtr::new(core::ptr::null_mut());
 #[cfg(not(test))]
 #[cfg(feature = "panic_unwind")]
 mod eh_unwinding {
-    pub(crate) struct EhFrameFinder(usize /* eh_frame */);
-    pub(crate) static mut EH_FRAME_SETTINGS: EhFrameFinder = EhFrameFinder(0);
-    impl EhFrameFinder {
-        pub(crate) unsafe fn init(&mut self, eh_frame: usize) {
-            unsafe {
-                EH_FRAME_SETTINGS.0 = eh_frame;
-            }
-        }
-    }
+    pub(crate) struct EhFrameFinder;
+    pub(crate) static mut EH_FRAME_ADDRESS: usize = 0;
+    pub(crate) static EH_FRAME_SETTINGS: EhFrameFinder = EhFrameFinder;
+    // impl EhFrameFinder {
+    //     pub fn new(frame: usize) -> Self {
+    //         EhFrameFinder(frame)
+    //     }
+    // }
+
     unsafe impl unwind::EhFrameFinder for EhFrameFinder {
         fn find(&self, _pc: usize) -> Option<unwind::FrameInfo> {
-            Some(unwind::FrameInfo {
-                text_base: None,
-                kind: unwind::FrameInfoKind::EhFrame(self.0),
-            })
+            if unsafe { EH_FRAME_ADDRESS == 0 } {
+                None
+            } else {
+                Some(unwind::FrameInfo {
+                    text_base: None,
+                    kind: unwind::FrameInfoKind::EhFrame(unsafe { EH_FRAME_ADDRESS }),
+                })
+            }
         }
     }
 }
@@ -54,10 +58,11 @@ mod c_compat {
     #[no_mangle]
     pub extern "C" fn _start(eh_frame: usize, params_address: usize) {
         #[cfg(feature = "panic_unwind")]
-        unsafe {
-            super::eh_unwinding::EH_FRAME_SETTINGS.init(eh_frame);
+        {
+            unsafe { super::eh_unwinding::EH_FRAME_ADDRESS = eh_frame };
             unwind::set_custom_eh_frame_finder(&super::eh_unwinding::EH_FRAME_SETTINGS).ok();
         }
+
         if params_address != 0 {
             let params_address = core::ptr::from_exposed_addr_mut::<u8>(params_address);
             if unsafe {
