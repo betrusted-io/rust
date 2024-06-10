@@ -6,7 +6,6 @@ use crate::os::xous::ffi::lend_mut;
 use crate::os::xous::services::{dns_server, DnsLendMut};
 
 pub struct DnsError {
-    #[allow(dead_code)]
     pub code: u8,
 }
 
