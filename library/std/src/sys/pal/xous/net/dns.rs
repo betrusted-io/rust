@@ -5,6 +5,7 @@ use crate::os::xous::services::{dns_server, DnsLendMut};
 use core::convert::{TryFrom, TryInto};
 
 pub struct DnsError {
+    #[allow(dead_code)]
     pub code: u8,
 }
 
