@@ -8,6 +8,9 @@ cfg_if::cfg_if! {
     } else if #[cfg(target_os = "solid_asp3")] {
         mod unsupported_backslash;
         pub use unsupported_backslash::*;
+    } else if #[cfg(target_os = "xous")] {
+        mod xous;
+        pub use xous::*;
     } else if #[cfg(target_os = "uefi")] {
         mod uefi;
         pub use uefi::*;
