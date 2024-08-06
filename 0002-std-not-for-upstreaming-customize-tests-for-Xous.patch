@@ -1,0 +1,140 @@
+From 479abdcd07afcd482573e94381d9f714b498afa7 Mon Sep 17 00:00:00 2001
+From: Sean Cross <sean@xobs.io>
+Date: Tue, 11 Mar 2025 23:08:29 +0800
+Subject: [PATCH 2/6] std: (not for upstreaming) customize tests for Xous
+
+Signed-off-by: Sean Cross <sean@xobs.io>
+---
+ library/std/src/collections/hash/map/tests.rs |  4 ++--
+ library/std/src/io/tests.rs                   |  1 +
+ library/std/tests/sync/mpsc.rs                |  4 ++--
+ library/std/tests/sync/mpsc_sync.rs           | 12 ++++++------
+ library/std/tests/time.rs                     |  2 +-
+ 5 files changed, 12 insertions(+), 11 deletions(-)
+
+diff --git a/library/std/src/collections/hash/map/tests.rs b/library/std/src/collections/hash/map/tests.rs
+index 9f7df20a1d7..c69e4e179ce 100644
+--- a/library/std/src/collections/hash/map/tests.rs
++++ b/library/std/src/collections/hash/map/tests.rs
+@@ -270,11 +270,11 @@ fn test_lots_of_insertions() {
+ 
+     // Try this a few times to make sure we never screw up the hashmap's
+     // internal state.
+-    let loops = if cfg!(miri) { 2 } else { 10 };
++    let loops = if cfg!(miri) || cfg!(target_os = "xous") { 2 } else { 10 };
+     for _ in 0..loops {
+         assert!(m.is_empty());
+ 
+-        let count = if cfg!(miri) { 66 } else { 1001 };
++        let count = if cfg!(miri) || cfg!(target_os = "xous") { 66 } else { 1001 };
+ 
+         for i in 1..count {
+             assert!(m.insert(i, i).is_none());
+diff --git a/library/std/src/io/tests.rs b/library/std/src/io/tests.rs
+index b22988d4a8a..b7b79dd1e37 100644
+--- a/library/std/src/io/tests.rs
++++ b/library/std/src/io/tests.rs
+@@ -358,6 +358,7 @@ fn chain_zero_length_read_is_not_eof() {
+ }
+ 
+ #[bench]
++#[cfg_attr(target_os = "xous", ignore)]
+ #[cfg_attr(miri, ignore)] // Miri isn't fast...
+ fn bench_read_to_end(b: &mut test::Bencher) {
+     b.iter(|| {
+diff --git a/library/std/tests/sync/mpsc.rs b/library/std/tests/sync/mpsc.rs
+index 9de4a71987b..5a985c2615c 100644
+--- a/library/std/tests/sync/mpsc.rs
++++ b/library/std/tests/sync/mpsc.rs
+@@ -471,7 +471,7 @@ fn recv_timeout_upgrade() {
+ #[test]
+ fn stress_recv_timeout_shared() {
+     let (tx, rx) = channel();
+-    let stress = stress_factor() + 100;
++    let stress = stress_factor() + if cfg!(target_os = "xous") { 10 } else { 100 };
+ 
+     for i in 0..stress {
+         let tx = tx.clone();
+@@ -543,7 +543,7 @@ fn shared_recv_timeout() {
+ #[test]
+ fn shared_chan_stress() {
+     let (tx, rx) = channel();
+-    let total = stress_factor() + 100;
++    let total = stress_factor() + if cfg!(target_os = "xous") { 20 } else { 100 };
+     for _ in 0..total {
+         let tx = tx.clone();
+         thread::spawn(move || {
+diff --git a/library/std/tests/sync/mpsc_sync.rs b/library/std/tests/sync/mpsc_sync.rs
+index a7f326d201b..fd64e60a22b 100644
+--- a/library/std/tests/sync/mpsc_sync.rs
++++ b/library/std/tests/sync/mpsc_sync.rs
+@@ -121,7 +121,7 @@ fn chan_gone_concurrent() {
+ 
+ #[test]
+ fn stress() {
+-    let count = if cfg!(miri) { 100 } else { 10000 };
++    let count = if cfg!(miri) || cfg!(target_os = "xous") { 100 } else { 10000 };
+     let (tx, rx) = sync_channel::<i32>(0);
+     thread::spawn(move || {
+         for _ in 0..count {
+@@ -135,7 +135,7 @@ fn stress() {
+ 
+ #[test]
+ fn stress_recv_timeout_two_threads() {
+-    let count = if cfg!(miri) { 100 } else { 10000 };
++    let count = if cfg!(miri) || cfg!(target_os = "xous") { 100 } else { 10000 };
+     let (tx, rx) = sync_channel::<i32>(0);
+ 
+     thread::spawn(move || {
+@@ -161,7 +161,7 @@ fn stress_recv_timeout_two_threads() {
+ 
+ #[test]
+ fn stress_recv_timeout_shared() {
+-    const AMT: u32 = if cfg!(miri) { 100 } else { 1000 };
++    const AMT: u32 = if cfg!(miri) || cfg!(target_os = "xous") { 100 } else { 1000 };
+     const NTHREADS: u32 = 8;
+     let (tx, rx) = sync_channel::<i32>(0);
+     let (dtx, drx) = sync_channel::<()>(0);
+@@ -201,7 +201,7 @@ fn stress_recv_timeout_shared() {
+ 
+ #[test]
+ fn stress_shared() {
+-    const AMT: u32 = if cfg!(miri) { 100 } else { 1000 };
++    const AMT: u32 = if cfg!(miri) || cfg!(target_os = "xous") { 100 } else { 1000 };
+     const NTHREADS: u32 = 8;
+     let (tx, rx) = sync_channel::<i32>(0);
+     let (dtx, drx) = sync_channel::<()>(0);
+@@ -448,7 +448,7 @@ fn recv(rx: Receiver<Box<i32>>, i: i32) {
+ 
+ #[test]
+ fn recv_a_lot() {
+-    let count = if cfg!(miri) { 1000 } else { 10000 };
++    let count = if cfg!(miri) || cfg!(target_os = "xous") { 1000 } else { 10000 };
+     // Regression test that we don't run out of stack in scheduler context
+     let (tx, rx) = sync_channel(count);
+     for _ in 0..count {
+@@ -462,7 +462,7 @@ fn recv_a_lot() {
+ #[test]
+ fn shared_chan_stress() {
+     let (tx, rx) = sync_channel(0);
+-    let total = stress_factor() + 100;
++    let total = stress_factor() + if cfg!(target_os = "xous") { 20 } else { 100 };
+     for _ in 0..total {
+         let tx = tx.clone();
+         thread::spawn(move || {
+diff --git a/library/std/tests/time.rs b/library/std/tests/time.rs
+index 40709eae37c..cca14bd946e 100644
+--- a/library/std/tests/time.rs
++++ b/library/std/tests/time.rs
+@@ -32,7 +32,7 @@ fn instant_monotonic_concurrent() -> std::thread::Result<()> {
+         .map(|_| {
+             std::thread::spawn(|| {
+                 let mut old = Instant::now();
+-                let count = if cfg!(miri) { 1_000 } else { 5_000_000 };
++                let count = if cfg!(miri) || cfg!(target_os = "xous") { 1_000 } else { 5_000_000 };
+                 for _ in 0..count {
+                     let new = Instant::now();
+                     assert!(new >= old);
+-- 
+2.51.0
+

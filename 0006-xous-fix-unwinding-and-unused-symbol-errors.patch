@@ -1,0 +1,61 @@
+From b3548bc918579c6c2abc273a39b5e3d465a6767a Mon Sep 17 00:00:00 2001
+From: Sean Cross <sean@xobs.io>
+Date: Tue, 28 Oct 2025 13:21:37 +0800
+Subject: [PATCH 6/6] xous: fix unwinding and unused symbol errors
+
+The unwinding feature is called `panic-unwind` and not `panic_unwind`.
+Adjust the feature gate to look for these values.
+
+Additionally, the `abort_internal()` call is no longer used.
+
+Signed-off-by: Sean Cross <sean@xobs.io>
+---
+ library/std/src/sys/pal/xous/mod.rs | 6 ------
+ library/std/src/sys/pal/xous/os.rs  | 4 ++--
+ 2 files changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/library/std/src/sys/pal/xous/mod.rs b/library/std/src/sys/pal/xous/mod.rs
+index e673157e0eb..1208516652d 100644
+--- a/library/std/src/sys/pal/xous/mod.rs
++++ b/library/std/src/sys/pal/xous/mod.rs
+@@ -1,7 +1,5 @@
+ #![forbid(unsafe_op_in_unsafe_fn)]
+ 
+-use crate::os::xous::ffi::exit;
+-
+ pub mod os;
+ #[path = "../unsupported/pipe.rs"]
+ pub mod pipe;
+@@ -10,7 +8,3 @@
+ #[path = "../unsupported/common.rs"]
+ mod common;
+ pub use common::*;
+-
+-pub fn abort_internal() -> ! {
+-    exit(101);
+-}
+diff --git a/library/std/src/sys/pal/xous/os.rs b/library/std/src/sys/pal/xous/os.rs
+index d9b8418e6c3..2da711f89df 100644
+--- a/library/std/src/sys/pal/xous/os.rs
++++ b/library/std/src/sys/pal/xous/os.rs
+@@ -11,7 +11,7 @@
+ static PARAMS_ADDRESS: Atomic<*mut u8> = AtomicPtr::new(core::ptr::null_mut());
+ 
+ #[cfg(not(test))]
+-#[cfg(feature = "panic_unwind")]
++#[cfg(feature = "panic-unwind")]
+ mod eh_unwinding {
+     pub(crate) struct EhFrameFinder;
+     pub(crate) static mut EH_FRAME_ADDRESS: usize = 0;
+@@ -45,7 +45,7 @@ pub extern "C" fn abort() {
+ 
+     #[unsafe(no_mangle)]
+     pub extern "C" fn _start(eh_frame: usize, params_address: usize) {
+-        #[cfg(feature = "panic_unwind")]
++        #[cfg(feature = "panic-unwind")]
+         {
+             unsafe { super::eh_unwinding::EH_FRAME_ADDRESS = eh_frame };
+             unwind::set_custom_eh_frame_finder(&super::eh_unwinding::EH_FRAME_SETTINGS).ok();
+-- 
+2.51.0
+
