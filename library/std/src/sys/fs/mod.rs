@@ -33,6 +33,9 @@ cfg_if::cfg_if! {
     } else if #[cfg(target_os = "wasi")] {
         mod wasi;
         use wasi as imp;
+    } else if #[cfg(target_os = "xous")] {
+        mod xous;
+        use xous as imp;
     } else {
         mod unsupported;
         use unsupported as imp;
