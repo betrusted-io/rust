@@ -47,6 +47,10 @@ cfg_select! {
         mod wasi;
         use wasi as imp;
     }
+    target_os = "xous" => {
+        mod xous;
+        use xous as imp;
+    }
     _ => {
         mod unsupported;
         use unsupported as imp;
