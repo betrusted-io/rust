@@ -491,9 +491,17 @@ pub fn readdir(p: &Path) -> io::Result<ReadDir> {
     }
 
     // Make the actual call
-    request.lend_mut(pddb_server(), PddbLendMut::ListPathStd.into()).or_else(|_| {
-        Err(crate::io::Error::new(crate::io::ErrorKind::Other, "unable to query database"))
-    })?;
+    let (err, _) =
+        request.lend_mut(pddb_server(), PddbLendMut::ListPathStd.into()).or_else(|_| {
+            Err(crate::io::Error::new(crate::io::ErrorKind::Other, "unable to query database"))
+        })?;
+    if err != 0 {
+        // retcode 2 (`BasisLost`) means the dict exists in no open basis: `NotFound`
+        return Err(crate::io::Error::new(
+            if err == 2 { crate::io::ErrorKind::NotFound } else { crate::io::ErrorKind::Other },
+            "error during directory listing",
+        ));
+    }
 
     // Read the data back
     let reader = request.reader(*b"PthR").ok_or_else(|| {
