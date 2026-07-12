@@ -214,7 +214,9 @@ impl File {
             })?;
 
             writer.append(path_as_str);
-            writer.append(opts.create_file);
+            // `create_new` implies creation (`O_CREAT | O_EXCL` elsewhere), so it
+            // must also assert the create flag on the wire.
+            writer.append(opts.create_file || opts.create_new);
             writer.append(false); // create_path
             writer.append(opts.create_new);
             writer.append(opts.append);
