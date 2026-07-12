@@ -446,9 +446,22 @@ impl DirBuilder {
         writer.append(path_as_str);
 
         // Make the actual call
-        request.lend_mut(pddb_server(), PddbLendMut::CreateDictStd.into()).or_else(|_| {
-            Err(crate::io::Error::new(crate::io::ErrorKind::Other, "unable to query database"))
-        })?;
+        let (err, _) =
+            request.lend_mut(pddb_server(), PddbLendMut::CreateDictStd.into()).or_else(|_| {
+                Err(crate::io::Error::new(crate::io::ErrorKind::Other, "unable to query database"))
+            })?;
+        if err != 0 {
+            // The server reports every creation failure alike; probe the path so an
+            // existing entry surfaces as `AlreadyExists` (`create_dir_all` relies on it).
+            return Err(if stat(p).is_ok() {
+                crate::io::Error::new(
+                    crate::io::ErrorKind::AlreadyExists,
+                    "directory already exists",
+                )
+            } else {
+                crate::io::Error::new(crate::io::ErrorKind::Other, "error during operation")
+            });
+        }
         Ok(())
     }
 }
