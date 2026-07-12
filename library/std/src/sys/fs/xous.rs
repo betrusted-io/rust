@@ -420,7 +420,9 @@ impl File {
 
 impl Drop for File {
     fn drop(&mut self) {
-        blocking_scalar(pddb_server(), PddbBlockingScalar::CloseKeyStd(self.fd).into()).unwrap();
+        // Errors on close are ignored, per `File`'s documented `Drop` contract
+        // (see also `Drop for OwnedFd`).
+        let _ = blocking_scalar(pddb_server(), PddbBlockingScalar::CloseKeyStd(self.fd).into());
     }
 }
 
