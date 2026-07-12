@@ -663,7 +663,17 @@ pub fn stat(p: &Path) -> io::Result<FileAttr> {
             crate::io::ErrorKind::NotFound,
             "File or directory does not exist, or is corrupted",
         )),
-        _ => Ok(FileAttr { kind, len: 0 }),
+        _ => {
+            // Only key entries carry a `u64` length after the kind byte, and the reply
+            // is untagged, so the read must stay gated on the kind (the dict-root reply
+            // appends no length). Servers without the fix fill in a `0` placeholder.
+            let len = if matches!(kind, FileType::Key | FileType::DictKey) {
+                reader.try_get_from::<u64>().unwrap_or(0)
+            } else {
+                0
+            };
+            Ok(FileAttr { kind, len })
+        }
     }
 }
 
