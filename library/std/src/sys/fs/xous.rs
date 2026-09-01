@@ -214,7 +214,9 @@ impl File {
             })?;
 
             writer.append(path_as_str);
-            writer.append(opts.create_file);
+            // `create_new` implies creation (`O_CREAT | O_EXCL` elsewhere), so it
+            // must also assert the create flag on the wire.
+            writer.append(opts.create_file || opts.create_new);
             writer.append(false); // create_path
             writer.append(opts.create_new);
             writer.append(opts.append);
@@ -420,7 +422,9 @@ impl File {
 
 impl Drop for File {
     fn drop(&mut self) {
-        blocking_scalar(pddb_server(), PddbBlockingScalar::CloseKeyStd(self.fd).into()).unwrap();
+        // Errors on close are ignored, per `File`'s documented `Drop` contract
+        // (see also `Drop for OwnedFd`).
+        let _ = blocking_scalar(pddb_server(), PddbBlockingScalar::CloseKeyStd(self.fd).into());
     }
 }
 
@@ -442,9 +446,22 @@ impl DirBuilder {
         writer.append(path_as_str);
 
         // Make the actual call
-        request.lend_mut(pddb_server(), PddbLendMut::CreateDictStd.into()).or_else(|_| {
-            Err(crate::io::Error::new(crate::io::ErrorKind::Other, "unable to query database"))
-        })?;
+        let (err, _) =
+            request.lend_mut(pddb_server(), PddbLendMut::CreateDictStd.into()).or_else(|_| {
+                Err(crate::io::Error::new(crate::io::ErrorKind::Other, "unable to query database"))
+            })?;
+        if err != 0 {
+            // The server reports every creation failure alike; probe the path so an
+            // existing entry surfaces as `AlreadyExists` (`create_dir_all` relies on it).
+            return Err(if stat(p).is_ok() {
+                crate::io::Error::new(
+                    crate::io::ErrorKind::AlreadyExists,
+                    "directory already exists",
+                )
+            } else {
+                crate::io::Error::new(crate::io::ErrorKind::Other, "error during operation")
+            });
+        }
         Ok(())
     }
 }
@@ -474,9 +491,17 @@ pub fn readdir(p: &Path) -> io::Result<ReadDir> {
     }
 
     // Make the actual call
-    request.lend_mut(pddb_server(), PddbLendMut::ListPathStd.into()).or_else(|_| {
-        Err(crate::io::Error::new(crate::io::ErrorKind::Other, "unable to query database"))
-    })?;
+    let (err, _) =
+        request.lend_mut(pddb_server(), PddbLendMut::ListPathStd.into()).or_else(|_| {
+            Err(crate::io::Error::new(crate::io::ErrorKind::Other, "unable to query database"))
+        })?;
+    if err != 0 {
+        // retcode 2 (`BasisLost`) means the dict exists in no open basis: `NotFound`
+        return Err(crate::io::Error::new(
+            if err == 2 { crate::io::ErrorKind::NotFound } else { crate::io::ErrorKind::Other },
+            "error during directory listing",
+        ));
+    }
 
     // Read the data back
     let reader = request.reader(*b"PthR").ok_or_else(|| {
@@ -638,7 +663,17 @@ pub fn stat(p: &Path) -> io::Result<FileAttr> {
             crate::io::ErrorKind::NotFound,
             "File or directory does not exist, or is corrupted",
         )),
-        _ => Ok(FileAttr { kind, len: 0 }),
+        _ => {
+            // Only key entries carry a `u64` length after the kind byte, and the reply
+            // is untagged, so the read must stay gated on the kind (the dict-root reply
+            // appends no length). Servers without the fix fill in a `0` placeholder.
+            let len = if matches!(kind, FileType::Key | FileType::DictKey) {
+                reader.try_get_from::<u64>().unwrap_or(0)
+            } else {
+                0
+            };
+            Ok(FileAttr { kind, len })
+        }
     }
 }
 
