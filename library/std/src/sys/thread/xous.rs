@@ -36,7 +36,7 @@ impl Thread {
                 None,
                 None,
                 GUARD_PAGE_SIZE + stack_size + GUARD_PAGE_SIZE,
-                MemoryFlags::R | MemoryFlags::W | MemoryFlags::X,
+                MemoryFlags::R | MemoryFlags::W,
             )
         }
         .map_err(|code| io::Error::from_raw_os_error(code as i32))?;
